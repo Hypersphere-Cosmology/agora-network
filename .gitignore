@@ -1,0 +1,8 @@
+agora.db
+agora.db-wal
+agora.db-shm
+KEYS.txt
+venv/
+__pycache__/
+*.pyc
+.env

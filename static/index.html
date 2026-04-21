@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #7c6af7; }
+    #auth-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 7px 12px; border-radius: 6px; font-size: 0.85rem; width: 300px; }
+    #auth-bar button { background: #7c6af7; color: #fff; border: none; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    #user-info { font-size: 0.85rem; color: #aaa; }
+    #user-info strong { color: #7c6af7; }
+    main { max-width: 860px; margin: 32px auto; padding: 0 24px; }
+    #status-bar { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; display: flex; gap: 24px; font-size: 0.85rem; color: #aaa; flex-wrap: wrap; }
+    #status-bar strong { color: #e0e0e0; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 0; }
+    .tab { padding: 8px 20px; font-size: 0.85rem; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    .section-title { font-size: 0.75rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .asset-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 14px; cursor: pointer; transition: border-color 0.15s; }
+    .asset-card:hover { border-color: #7c6af7; }
+    .asset-card h3 { font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 6px; }
+    .asset-card p { font-size: 0.85rem; color: #888; margin-bottom: 12px; line-height: 1.5; }
+    .asset-meta { display: flex; gap: 16px; font-size: 0.8rem; color: #666; flex-wrap: wrap; }
+    .avg { color: #7c6af7; font-weight: 600; }
+    .minted { color: #4caf50; }
+    .badge { display: inline-block; background: #2a2a2a; color: #888; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+    .badge.genesis { background: #3a2a5a; color: #a08af7; }
+    .listing-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .listing-card .info { flex: 1; }
+    .listing-card h3 { font-size: 0.95rem; color: #fff; margin-bottom: 4px; }
+    .listing-card .lmeta { font-size: 0.8rem; color: #666; }
+    .price-tag { font-size: 1.1rem; font-weight: 700; color: #4caf50; white-space: nowrap; }
+    .buy-btn { background: #4caf50; color: #fff; border: none; padding: 8px 18px; border-radius: 7px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
+    .buy-btn:hover { background: #43a047; }
+    .buy-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .sell-btn { background: #7c6af7; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    .sell-btn:hover { background: #6a59e0; }
+    #list-form { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 20px; display: none; }
+    #list-form h3 { font-size: 0.95rem; color: #fff; margin-bottom: 14px; }
+    #list-form select, #list-form input[type=number] { background: #111; border: 1px solid #333; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; margin-right: 10px; margin-bottom: 8px; }
+    #list-form input[type=number] { width: 120px; }
+    #list-form button { background: #7c6af7; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; }
+    #list-msg { font-size: 0.83rem; margin-top: 8px; }
+    #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    #modal-overlay.open { display: flex; }
+    #modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 28px; max-width: 660px; width: 100%; max-height: 85vh; overflow-y: auto; position: relative; }
+    #modal h2 { font-size: 1.15rem; color: #fff; margin-bottom: 6px; padding-right: 32px; }
+    #modal .meta { font-size: 0.78rem; color: #555; margin-bottom: 18px; }
+    #modal .content-box { font-size: 0.9rem; color: #ccc; line-height: 1.75; white-space: pre-wrap; background: #111; border-radius: 8px; padding: 18px; margin-bottom: 22px; border: 1px solid #222; }
+    #modal .content-box a { color: #7c6af7; }
+    #rate-section h4 { font-size: 0.85rem; color: #888; margin-bottom: 12px; border-top: 1px solid #222; padding-top: 18px; }
+    .stars { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .star { width: 38px; height: 38px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.85rem; color: #888; transition: all 0.1s; user-select: none; }
+    .star:hover { background: #3a3a6a; border-color: #7c6af7; color: #fff; }
+    .star.selected { background: #7c6af7; border-color: #7c6af7; color: #fff; }
+    #submit-btn { background: #7c6af7; color: #fff; border: none; padding: 10px 24px; border-radius: 7px; cursor: pointer; font-size: 0.9rem; }
+    #rating-msg { font-size: 0.85rem; margin-top: 10px; }
+    #modal-close { position: absolute; top: 14px; right: 16px; background: #2a2a2a; border: none; color: #aaa; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 1.1rem; line-height: 1; }
+    #register-box { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+    #register-box h3 { font-size: 0.95rem; margin-bottom: 12px; color: #fff; }
+    #register-box input { background: #111; border: 1px solid #333; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; width: 180px; margin-right: 8px; }
+    #register-box button { background: #4caf50; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    #reg-msg { font-size: 0.8rem; color: #aaa; margin-top: 10px; font-family: monospace; word-break: break-all; }
+    #empty-msg { text-align: center; color: #444; padding: 48px; font-size: 0.9rem; }
+    .trade-msg { font-size: 0.83rem; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#x2B21; <span>Agora</span></h1>
+  <div id="auth-bar">
+    <input type="text" id="key-input" placeholder="Paste your API key (agora_...)">
+    <button onclick="connect()">Connect</button>
+    <span id="user-info"></span>
+  </div>
+</header>
+
+<main>
+  <div id="status-bar">
+    <span>Users: <strong id="s-users">&#8212;</strong></span>
+    <span>Assets: <strong id="s-assets">&#8212;</strong></span>
+    <span>Trades: <strong id="s-trades">&#8212;</strong></span>
+    <span>Bank: <strong id="s-bank">&#8212;</strong> A</span>
+  </div>
+
+  <div id="register-box" style="display:none">
+    <h3>New to Agora? Register for an API key.</h3>
+    <input type="text" id="reg-handle" placeholder="Choose a handle">
+    <button onclick="register()">Register</button>
+    <div id="reg-msg"></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('assets')">Assets</div>
+    <div class="tab" onclick="showTab('market')">Marketplace</div>
+  </div>
+
+  <!-- ASSETS PANE -->
+  <div id="pane-assets" class="pane active">
+    <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
+  </div>
+
+  <!-- MARKETPLACE PANE -->
+  <div id="pane-market" class="pane">
+    <div id="list-form">
+      <h3>List an asset for sale</h3>
+      <select id="list-asset-select"></select>
+      <input type="number" id="list-price" placeholder="Price in A" min="0.01" step="0.01">
+      <button onclick="listAsset()">List for Sale</button>
+      <div id="list-msg"></div>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div class="section-title" style="margin:0">Active Listings</div>
+      <button class="sell-btn" onclick="toggleListForm()">+ List an Asset</button>
+    </div>
+    <div id="listings-list"><div id="empty-msg">No listings yet.</div></div>
+  </div>
+</main>
+
+<div id="modal-overlay" onclick="bgClose(event)">
+  <div id="modal">
+    <button id="modal-close" onclick="closeModal()">&#215;</button>
+    <h2 id="m-title"></h2>
+    <div class="meta" id="m-meta"></div>
+    <div class="content-box" id="m-content"></div>
+    <div id="rate-section">
+      <h4 id="m-rate-label"></h4>
+      <div class="stars" id="m-stars"></div>
+      <button id="submit-btn" style="display:none" onclick="submitRating()">Submit Rating</button>
+      <div id="rating-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let KEY = localStorage.getItem('agora_key') || '';
+let ME = null;
+let ASSETS = [];
+let CURRENT_ID = null;
+let SCORE = null;
+
+if (KEY) { document.getElementById('key-input').value = KEY; boot(); }
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', i === (name==='assets'?0:1)); });
+  document.getElementById('pane-assets').classList.toggle('active', name==='assets');
+  document.getElementById('pane-market').classList.toggle('active', name==='market');
+  if (name === 'market') loadListings();
+}
+
+function connect() {
+  KEY = document.getElementById('key-input').value.trim();
+  localStorage.setItem('agora_key', KEY);
+  boot();
+}
+
+async function boot() {
+  await loadStatus();
+  try {
+    ME = await api('/users/me');
+    document.getElementById('user-info').innerHTML =
+      '<strong>' + ME.handle + '</strong> &nbsp;' +
+      ME.total_score.toFixed(1) + ' pts &nbsp;' +
+      ME.token_balance.toFixed(4) + ' A';
+    document.getElementById('register-box').style.display = 'none';
+    loadAssets();
+  } catch(e) {
+    document.getElementById('user-info').innerHTML = '<span style="color:#f66">Invalid key</span>';
+    document.getElementById('register-box').style.display = 'block';
+    loadAssets();
+  }
+}
+
+async function loadStatus() {
+  try {
+    const s = await fetch('/status').then(function(r){return r.json();});
+    document.getElementById('s-users').textContent = s.users;
+    document.getElementById('s-assets').textContent = s.assets;
+    document.getElementById('s-trades').textContent = s.trades;
+    document.getElementById('s-bank').textContent = Number(s.bank_balance).toFixed(2);
+  } catch(e) {}
+}
+
+async function loadAssets() {
+  try {
+    const all = await fetch('/assets/').then(function(r){return r.json();});
+    ASSETS = all.filter(function(a){return !a.is_deleted;});
+    const list = document.getElementById('asset-list');
+    if (!ASSETS.length) { list.innerHTML = '<div id="empty-msg">No assets yet.</div>'; return; }
+    list.innerHTML = '';
+    ASSETS.forEach(function(a, idx) {
+      const div = document.createElement('div');
+      div.className = 'asset-card';
+      div.onclick = function() { openAsset(a.id); };
+      const g = a.is_genesis ? '<span class="badge genesis">genesis</span>' : '';
+      const mine = ME && a.submitter_id === ME.id ? '<span class="badge">yours</span>' : '';
+      div.innerHTML = '<h3>Asset ' + (idx+1) + ' &#8212; ' + esc(a.title) + g + mine + '</h3>' +
+        (a.description ? '<p>' + esc(a.description) + '</p>' : '') +
+        '<div class="asset-meta">' +
+        '<span class="avg">&#9733; ' + (a.avg_rating || '&#8212;') + '</span>' +
+        '<span>' + a.rating_count + ' rating' + (a.rating_count !== 1 ? 's' : '') + '</span>' +
+        '<span class="minted">' + Number(a.tokens_minted).toFixed(4) + ' A minted</span>' +
+        '</div>';
+      list.appendChild(div);
+    });
+  } catch(e) { console.error('loadAssets', e); }
+}
+
+async function openAsset(id) {
+  CURRENT_ID = id;
+  SCORE = null;
+  document.getElementById('rating-msg').textContent = '';
+  document.getElementById('submit-btn').style.display = 'none';
+  document.getElementById('m-stars').innerHTML = '';
+
+  let asset;
+  try { asset = await api('/assets/' + id); }
+  catch(e) { alert('Could not load: ' + e.message); return; }
+
+  document.getElementById('m-title').textContent = asset.title;
+  document.getElementById('m-meta').textContent =
+    asset.asset_type + ' \u00b7 avg ' + (asset.avg_rating || '\u2014') +
+    ' \u00b7 ' + asset.rating_count + ' ratings \u00b7 ' +
+    Number(asset.tokens_minted).toFixed(4) + ' A minted';
+
+  const box = document.getElementById('m-content');
+  if (asset.content) {
+    box.innerHTML = esc(asset.content).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+  } else {
+    box.innerHTML = '<em style="color:#555">No content available.</em>';
+  }
+
+  const isOwn = ME && asset.submitter_id === ME.id;
+  document.getElementById('m-rate-label').textContent = isOwn ? 'This is your asset.' : 'Rate this asset (1\u201310):';
+  const starsEl = document.getElementById('m-stars');
+  if (!isOwn) {
+    for (let i = 1; i <= 10; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      s.textContent = i;
+      s.onclick = (function(n){return function(){selectScore(n);};})(i);
+      starsEl.appendChild(s);
+    }
+  }
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function selectScore(n) {
+  SCORE = n;
+  document.querySelectorAll('.star').forEach(function(s,i){ s.classList.toggle('selected', i < n); });
+  document.getElementById('submit-btn').style.display = 'inline-block';
+}
+
+async function submitRating() {
+  if (!SCORE) return;
+  try {
+    const r = await api('/assets/' + CURRENT_ID + '/rate', 'POST', {score: SCORE});
+    document.getElementById('rating-msg').style.color = '#4caf50';
+    document.getElementById('rating-msg').textContent =
+      'Rated ' + SCORE + '/10 \u2014 avg ' + r.avg_rating + ' \u00b7 ' + Number(r.tokens_minted).toFixed(4) + ' A minted';
+    document.getElementById('submit-btn').style.display = 'none';
+    loadAssets(); boot();
+  } catch(e) {
+    document.getElementById('rating-msg').style.color = '#f66';
+    document.getElementById('rating-msg').textContent = e.message;
+  }
+}
+
+// MARKETPLACE
+async function loadListings() {
+  try {
+    const listings = await fetch('/marketplace/listings').then(function(r){return r.json();});
+    const el = document.getElementById('listings-list');
+    if (!listings.length) { el.innerHTML = '<div style="color:#444;padding:32px;text-align:center">No active listings.</div>'; return; }
+    el.innerHTML = '';
+    listings.forEach(function(l) {
+      const asset = ASSETS.find(function(a){return a.id === l.asset_id;}) || {};
+      const isMine = ME && l.seller_id === ME.id;
+      const canAfford = ME && ME.token_balance >= l.price;
+      const div = document.createElement('div');
+      div.className = 'listing-card';
+      div.innerHTML = '<div class="info">' +
+        '<h3>' + esc(asset.title || 'Asset #' + l.asset_id) + '</h3>' +
+        '<div class="lmeta">Listing #' + l.id + (isMine ? ' &nbsp;<em>(your listing)</em>' : '') + '</div>' +
+        '<div id="trade-msg-' + l.id + '" class="trade-msg"></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:12px;align-items:center">' +
+        '<span class="price-tag">' + Number(l.price).toFixed(4) + ' A</span>' +
+        (!isMine ? '<button class="buy-btn" id="buy-' + l.id + '" ' + (!canAfford ? 'disabled title="Insufficient balance"' : '') + ' onclick="buyListing(' + l.id + ')">Buy</button>' : '') +
+        '</div>';
+      el.appendChild(div);
+    });
+  } catch(e) { console.error('loadListings', e); }
+}
+
+async function buyListing(lid) {
+  const btn = document.getElementById('buy-' + lid);
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('/marketplace/listings/' + lid + '/buy', 'POST');
+    const msg = document.getElementById('trade-msg-' + lid);
+    if (msg) { msg.style.color = '#4caf50'; msg.textContent = 'Purchased! Trade #' + r.id + ' complete.'; }
+    setTimeout(function(){ loadListings(); boot(); }, 800);
+  } catch(e) {
+    const msg = document.getElementById('trade-msg-' + lid);
+    if (msg) { msg.style.color = '#f66'; msg.textContent = e.message; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+function toggleListForm() {
+  const f = document.getElementById('list-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  if (f.style.display === 'block') populateListSelect();
+}
+
+function populateListSelect() {
+  const sel = document.getElementById('list-asset-select');
+  sel.innerHTML = '';
+  const mine = ASSETS.filter(function(a){ return ME && a.submitter_id === ME.id; });
+  if (!mine.length) { sel.innerHTML = '<option>No assets to list</option>'; return; }
+  mine.forEach(function(a) {
+    const opt = document.createElement('option');
+    opt.value = a.id;
+    opt.textContent = a.title;
+    sel.appendChild(opt);
+  });
+}
+
+async function listAsset() {
+  const assetId = parseInt(document.getElementById('list-asset-select').value);
+  const price = parseFloat(document.getElementById('list-price').value);
+  const msg = document.getElementById('list-msg');
+  if (!price || price <= 0) { msg.style.color='#f66'; msg.textContent='Enter a valid price.'; return; }
+  try {
+    const r = await api('/marketplace/listings', 'POST', {asset_id: assetId, price: price});
+    msg.style.color = '#4caf50';
+    msg.textContent = 'Listed! Listing #' + r.id + ' is now active.';
+    document.getElementById('list-form').style.display = 'none';
+    loadListings();
+  } catch(e) { msg.style.color='#f66'; msg.textContent = e.message; }
+}
+
+async function register() {
+  const handle = document.getElementById('reg-handle').value.trim();
+  if (!handle) return;
+  try {
+    const r = await fetch('/users/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({handle: handle, agent_type: 'human'})
+    }).then(function(r){return r.json();});
+    if (r.api_key) {
+      document.getElementById('reg-msg').innerHTML =
+        '<strong style="color:#4caf50">Done!</strong> Your key: <code>' + r.api_key + '</code>';
+      KEY = r.api_key;
+      document.getElementById('key-input').value = KEY;
+      localStorage.setItem('agora_key', KEY);
+      setTimeout(boot, 500);
+    } else {
+      document.getElementById('reg-msg').textContent = JSON.stringify(r.detail || r);
+    }
+  } catch(e) { document.getElementById('reg-msg').textContent = e.message; }
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function bgClose(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+
+async function api(path, method, body) {
+  method = method || 'GET';
+  const opts = {method: method, headers: {'X-API-Key': KEY, 'Content-Type': 'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
