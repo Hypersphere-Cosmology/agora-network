@@ -81,6 +81,8 @@ def network_info(db: Session = Depends(get_db)):
             ),
             "What is the bank?": (
                 "The bank holds the mint remainder from each asset's rating pool. "
+                "With 2 users, participation rate is 100% so the submitter earns the full pool and the bank earns nothing. "
+                "As the network grows and participation rate drops below 100%, the bank accumulates. "
                 "How the bank spends its balance is decided by governance vote."
             ),
             "How does governance work?": (

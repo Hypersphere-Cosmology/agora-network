@@ -78,6 +78,35 @@ def get_notifications():
                      headers=MB_HEADERS, timeout=15)
     return r.json().get("notifications", [])
 
+def get_activity_comments():
+    """
+    Check home endpoint for new comments on posts ava_agora has engaged with.
+    Returns list of (post_id, post_title, comment) tuples for unread activity.
+    """
+    try:
+        r = requests.get("https://www.moltbook.com/api/v1/home",
+                         headers=MB_HEADERS, timeout=15)
+        d = r.json()
+        activity = d.get("activity_on_your_posts", [])
+        results = []
+        for item in activity:
+            post_id = item.get("post_id", "")
+            post_title = item.get("post_title", "")
+            count = item.get("new_notification_count", 0)
+            if count == 0 or not post_id:
+                continue
+            # Fetch newest comments on this post
+            r2 = requests.get(
+                f"https://www.moltbook.com/api/v1/posts/{post_id}/comments?sort=new&limit=10",
+                headers=MB_HEADERS, timeout=15)
+            for c in r2.json().get("comments", []):
+                if c.get("author", {}).get("name") != "ava_agora":
+                    results.append((post_id, post_title, c))
+        return results
+    except Exception as e:
+        log.warning(f"Activity fetch error: {e}")
+        return []
+
 def post_comment(post_id: str, content: str, parent_id: str = None) -> bool:
     payload = {"content": content}
     if parent_id:
@@ -103,13 +132,15 @@ def post_comment(post_id: str, content: str, parent_id: str = None) -> bool:
 def solve_physics(challenge: str) -> str:
     """Solve Moltbook's lobster physics verification using Groq."""
     try:
-        ans = ask_groq(
-            "Solve this physics word problem. Return ONLY the numeric answer with 2 decimal places (e.g. 28.00). No text.",
-            challenge, max_tokens=20
-        )
-        # Extract first number
         import re
-        nums = re.findall(r'\d+\.?\d*', ans)
+        # Clean the obfuscated challenge text
+        cleaned = re.sub(r'[^a-zA-Z0-9\s\.\,]', ' ', challenge)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip().lower()
+        ans = ask_groq(
+            "Solve this physics word problem. Return ONLY the numeric answer with 2 decimal places (e.g. 28.00). No units, no text, just the number.",
+            cleaned, max_tokens=15
+        )
+        nums = re.findall(r'[\d]+\.?[\d]*', ans.replace(',',''))
         return f"{float(nums[0]):.2f}" if nums else "0.00"
     except:
         return "0.00"
@@ -201,6 +232,37 @@ Write a reply as Ava."""
 
             if new_count:
                 log.info(f"Processed {new_count} new notifications")
+
+            # Also check activity on posts we've engaged with (catches threads not in notifs)
+            for post_id, post_title, c in get_activity_comments():
+                cid = c.get("id", "")
+                if not cid or cid in seen:
+                    continue
+                author = c.get("author", {}).get("name", "")
+                karma = c.get("author", {}).get("karma", 0)
+                content = c.get("content", "")
+                if author == "ava_agora" or not content:
+                    seen.add(cid)
+                    continue
+                seen.add(cid)
+                if not is_worth_responding(content, karma):
+                    continue
+                user_prompt = f"""Post title: "{post_title}"
+
+{author} (karma: {karma}) commented:
+"{content}"
+
+Write a reply as Ava."""
+                try:
+                    reply = ask_groq(SYSTEM_PROMPT, user_prompt)
+                    if reply and len(reply) > 10:
+                        success = post_comment(post_id, reply, cid)
+                        if success:
+                            state["responses_sent"] = state.get("responses_sent", 0) + 1
+                            log.info(f"[activity] Replied to {author} [{karma}k] on '{post_title[:40]}'")
+                    time.sleep(3)
+                except Exception as e:
+                    log.error(f"Groq error (activity) for {author}: {e}")
 
             state["seen_cids"] = list(seen)[-500:]  # keep last 500
             state["last_check"] = int(time.time())
