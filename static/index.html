@@ -211,10 +211,10 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
     <div class="tabs" style="margin-bottom:0; border-bottom:none;">
       <div class="tab active" onclick="showTab('assets')">Assets</div>
-      <div class="tab" onclick="showTab('market')">Marketplace</div>
-      <div class="tab" onclick="showTab('users')">Users</div>
       <div class="tab" onclick="showTab('services')">Services</div>
+      <div class="tab" onclick="showTab('market')">Marketplace</div>
       <div class="tab" onclick="showTab('gov')">Governance</div>
+      <div class="tab" onclick="showTab('users')">Users</div>
       <div class="tab" onclick="showTab('profile')">Profile</div>
     </div>
     <button id="submit-asset-btn" onclick="toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;display:none">+ Submit Asset</button>
@@ -409,7 +409,7 @@ async function submitAsset() {
 }
 
 function showTab(name) {
-  var tabs = ['assets','market','users','services','gov','profile'];
+  var tabs = ['assets','services','market','gov','users','profile'];
   document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
   document.getElementById('pane-assets').classList.toggle('active', name==='assets');
   document.getElementById('pane-market').classList.toggle('active', name==='market');
