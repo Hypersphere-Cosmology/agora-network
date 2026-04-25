@@ -258,6 +258,43 @@ def deny_bounty(
     return {"bounty_id": bounty_id, "status": "open", "denied": denied.handle if denied else "?"}
 
 
+@router.delete("/bounties/{bounty_id}", status_code=200)
+def cancel_bounty(
+    bounty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancel your bounty and refund escrowed tokens. Cannot cancel if a claim is pending approval."""
+    listing = db.query(Listing).filter(
+        Listing.id == bounty_id,
+        Listing.is_active == True,
+        Listing.asset_id == None,
+    ).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Bounty not found or already closed")
+    if listing.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the bounty poster can cancel it")
+    if listing.pending_claimant_id:
+        pending = db.query(User).filter(User.id == listing.pending_claimant_id).first()
+        raise HTTPException(status_code=409,
+            detail=f"Cannot cancel — a claim from @{pending.handle if pending else '?'} is pending. Deny it first, then cancel.")
+
+    # Refund
+    current_user.token_balance = round(current_user.token_balance + listing.price, 6)
+    listing.is_active = False
+
+    db.add(TokenEvent(event_type="bounty_cancelled", user_id=current_user.id, amount=listing.price,
+                      note=f"bounty #{bounty_id} cancelled — refunded"))
+    db.commit()
+
+    return {
+        "bounty_id": bounty_id,
+        "status": "cancelled",
+        "refunded": listing.price,
+        "new_balance": current_user.token_balance,
+    }
+
+
 def _execute_bounty(listing, poster, claimant, db, bounty_id):
     """Internal: transfer escrow to claimant, close listing."""
     fee = round(listing.price * TRADE_FEE_RATE, 6)

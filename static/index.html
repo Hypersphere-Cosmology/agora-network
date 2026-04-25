@@ -680,6 +680,7 @@ async function loadListings() {
         '<button onclick="toggleBountyThread(' + b.bounty_id + ')" style="background:none;border:1px solid #333;color:#666;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;">💬 Discuss</button>' +
         '<span class="price-tag">' + Number(b.amount).toFixed(4) + ' A</span>' +
         (!isMine ? '<button class="buy-btn" onclick="claimBounty(' + b.bounty_id + ')">Claim</button>' : '') +
+        (isMine ? '<button onclick="cancelBounty(' + b.bounty_id + ')" style="background:none;border:1px solid #555;color:#666;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;">Cancel & Refund</button>' : '') +
         '</div>';
       // Inline thread panel
       var thread = document.createElement('div');
@@ -726,6 +727,15 @@ async function submitBountyComment(bid) {
     input.value = '';
     toggleBountyThread(bid); // close
     toggleBountyThread(bid); // reopen to refresh
+  } catch(e) { alert(e.message); }
+}
+
+async function cancelBounty(bid) {
+  if (!confirm('Cancel bounty #' + bid + ' and refund your tokens?')) return;
+  try {
+    var r = await api('/marketplace/bounties/' + bid, 'DELETE');
+    alert('Bounty cancelled. ' + Number(r.refunded).toFixed(4) + ' A refunded to your balance.');
+    loadListings(); boot();
   } catch(e) { alert(e.message); }
 }
 
