@@ -671,8 +671,15 @@ async function openAsset(id) {
     var modBtn = document.createElement('button');
     modBtn.id = 'm-mod-btn';
     modBtn.textContent = '+ Submit Modification';
-    modBtn.style.cssText = 'background:#1a2a3a;color:#7aaaf7;border:1px solid #2a3a5a;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-bottom:14px;';
-    modBtn.onclick = (function(aid){ return function(){ closeModal(); document.getElementById('sf-parent').value = aid; document.getElementById('submit-form').style.display='block'; document.getElementById('sf-title').focus(); showTab('assets'); }; })(asset.id);
+    modBtn.style.cssText = 'background:none;color:#555;border:1px solid #2a2a2a;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;margin-bottom:14px;';
+    modBtn.onclick = (function(aid){ return function(){
+      if (!confirm('Create a new modification asset linked to #' + aid + '?')) return;
+      closeModal();
+      document.getElementById('sf-parent').value = aid;
+      document.getElementById('submit-form').style.display='block';
+      document.getElementById('sf-title').focus();
+      showTab('assets');
+    }; })(asset.id);
     document.getElementById('rate-section').insertBefore(modBtn, document.getElementById('rate-section').firstChild);
   }
 
