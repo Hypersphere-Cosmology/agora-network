@@ -4,15 +4,17 @@ Users request token purchases, submit payment txid, founders confirm → tokens 
 Supports SOL, BTC, ETH, and manual (Venmo/CashApp).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
-from db import get_db, User, TokenPurchase, PaymentAddress, TokenEvent, StorageConfig
+from db import get_db, User, TokenPurchase, PaymentAddress, TokenEvent, StorageConfig, SessionLocal
 from auth import get_current_user
 from notifications import notify
 from ratelimit import limiter
+import blockchain
 
 router = APIRouter(prefix="/fiat", tags=["fiat"])
 
@@ -150,10 +152,79 @@ def request_purchase(
     }
 
 
+@router.post("/wallet/generate")
+def generate_wallet(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Founders only — generate a new SOL treasury wallet and save locally."""
+    if current_user.handle not in FOUNDER_HANDLES:
+        raise HTTPException(status_code=403, detail="Founders only")
+    wallet = blockchain.generate_sol_wallet()
+    blockchain.save_treasury(wallet)
+    # Auto-register as payment address
+    existing = db.query(PaymentAddress).filter(PaymentAddress.currency == "sol").first()
+    if existing:
+        existing.address = wallet["pubkey"]
+        existing.label = "Agora Treasury (SOL)"
+    else:
+        db.add(PaymentAddress(currency="sol", address=wallet["pubkey"], label="Agora Treasury (SOL)"))
+    db.commit()
+    return {
+        "pubkey": wallet["pubkey"],
+        "network": wallet["network"],
+        "saved": True,
+        "warning": "Private key saved to .secrets/treasury.json — never share or commit this file.",
+        "next_step": "Fund this address with SOL, then share the pubkey for incoming payments.",
+    }
+
+
+@router.get("/wallet/status")
+def wallet_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Founders only — check treasury wallet status."""
+    if current_user.handle not in FOUNDER_HANDLES:
+        raise HTTPException(status_code=403, detail="Founders only")
+    treasury = blockchain.load_treasury()
+    if not treasury:
+        return {"configured": False, "message": "No treasury wallet. POST /fiat/wallet/generate to create one."}
+
+    return {
+        "configured": True,
+        "pubkey": treasury.get("pubkey"),
+        "network": treasury.get("network", "mainnet-beta"),
+        "check_balance": f"GET /fiat/wallet/balance",
+    }
+
+
+@router.get("/wallet/balance")
+async def wallet_balance(
+    current_user: User = Depends(get_current_user),
+):
+    """Founders only — get current SOL balance of treasury wallet."""
+    if current_user.handle not in FOUNDER_HANDLES:
+        raise HTTPException(status_code=403, detail="Founders only")
+    treasury = blockchain.load_treasury()
+    if not treasury:
+        raise HTTPException(status_code=404, detail="No treasury wallet configured")
+
+    sol_balance = await blockchain.get_sol_balance(treasury["pubkey"])
+    sol_price = await blockchain.get_sol_price_usd()
+    return {
+        "pubkey": treasury["pubkey"],
+        "sol_balance": sol_balance,
+        "usd_value": round(sol_balance * sol_price, 2),
+        "sol_price_usd": sol_price,
+    }
+
+
 @router.post("/buy/{purchase_id}/txid")
 def submit_txid(
     purchase_id: int,
     payload: SubmitTxid,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -172,6 +243,13 @@ def submit_txid(
     purchase.status = "confirming"
     purchase.updated_at = datetime.now(timezone.utc)
     db.commit()
+
+    # Kick off auto-verify for SOL/ETH (runs in background, falls back to manual if it fails)
+    if purchase.payment_method in ("sol", "eth"):
+        background_tasks.add_task(
+            asyncio.run,
+            blockchain.auto_verify_and_confirm(purchase_id, SessionLocal)
+        )
 
     # Notify founders to confirm
     for handle in FOUNDER_HANDLES:
@@ -274,6 +352,60 @@ def reject_purchase(
         db.commit()
 
     return {"purchase_id": purchase_id, "status": "rejected", "reason": reason}
+
+
+@router.post("/buy/{purchase_id}/verify")
+async def verify_onchain(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Founders only — manually trigger on-chain verification for a purchase."""
+    if current_user.handle not in FOUNDER_HANDLES:
+        raise HTTPException(status_code=403, detail="Founders only")
+
+    purchase = db.query(TokenPurchase).filter(TokenPurchase.id == purchase_id).first()
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Purchase not found")
+    if not purchase.txid:
+        raise HTTPException(status_code=409, detail="No txid submitted yet")
+    if purchase.status == "complete":
+        return {"status": "already_complete"}
+
+    if purchase.payment_method == "sol":
+        sol_price = await blockchain.get_sol_price_usd()
+        treasury = blockchain.load_treasury()
+        if not treasury:
+            raise HTTPException(status_code=503, detail="No treasury wallet configured")
+        result = await blockchain.verify_sol_payment(
+            txid=purchase.txid,
+            expected_recipient=treasury["pubkey"],
+            expected_usd=purchase.amount_usd,
+            sol_price_usd=sol_price,
+        )
+    elif purchase.payment_method == "eth":
+        addr_row = db.query(PaymentAddress).filter(
+            PaymentAddress.currency == "eth", PaymentAddress.is_active == True).first()
+        if not addr_row:
+            raise HTTPException(status_code=503, detail="No ETH address configured")
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get("https://api.coingecko.com/api/v3/simple/price",
+                                params={"ids":"ethereum","vs_currencies":"usd"})
+                eth_price = float(r.json()["ethereum"]["usd"])
+        except Exception:
+            eth_price = 3000.0
+        result = await blockchain.verify_eth_payment(
+            txid=purchase.txid,
+            expected_recipient=addr_row.address,
+            expected_usd=purchase.amount_usd,
+            eth_price_usd=eth_price,
+        )
+    else:
+        raise HTTPException(status_code=422, detail=f"On-chain verify not supported for {purchase.payment_method}")
+
+    return {"purchase_id": purchase_id, "txid": purchase.txid, "result": result}
 
 
 @router.get("/buy/mine")
