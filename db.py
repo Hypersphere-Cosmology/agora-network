@@ -45,7 +45,7 @@ class User(Base):
 
     assets = relationship("Asset", back_populates="submitter")
     ratings_given = relationship("Rating", back_populates="rater")
-    listings = relationship("Listing", back_populates="seller")
+    listings = relationship("Listing", foreign_keys="[Listing.seller_id]", back_populates="seller")
 
 
 class Asset(Base):
@@ -126,8 +126,12 @@ class Listing(Base):
     is_active = Column(Boolean, default=True)
     listed_at = Column(DateTime, default=utcnow)
 
+    requires_approval = Column(Boolean, default=False)
+    pending_claimant_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     asset = relationship("Asset", foreign_keys=[asset_id])
-    seller = relationship("User", back_populates="listings")
+    seller = relationship("User", foreign_keys=[seller_id], back_populates="listings")
 
 
 class Trade(Base):

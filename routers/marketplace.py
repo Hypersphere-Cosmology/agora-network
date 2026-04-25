@@ -51,7 +51,8 @@ class ListingOut(BaseModel):
 
 class BountyCreate(BaseModel):
     amount: float
-    memo: Optional[str] = None   # e.g. "first new user to join gets this"
+    memo: Optional[str] = None
+    requires_approval: bool = True   # poster must approve before tokens release
 
 
 @router.post("/transfer", status_code=201)
@@ -116,21 +117,19 @@ def post_bounty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Post a public bounty — tokens held in escrow, claimable by the first eligible user."""
+    """Post a bounty. Tokens go to escrow. Poster must approve claims (default) or set requires_approval=false for open first-come."""
     if payload.amount <= 0:
         raise HTTPException(status_code=422, detail="Amount must be positive")
-
     if current_user.token_balance < payload.amount:
         raise HTTPException(status_code=402, detail="Insufficient token balance")
 
-    # Escrow: deduct immediately, store in a listing record (seller=poster, asset_id=0 sentinel)
     current_user.token_balance = round(current_user.token_balance - payload.amount, 6)
-
     listing = Listing(
-        asset_id=None,         # no asset — this is a bounty
+        asset_id=None,
         seller_id=current_user.id,
         price=payload.amount,
         memo=payload.memo,
+        requires_approval=payload.requires_approval,
         is_active=True,
     )
     db.add(listing)
@@ -139,12 +138,14 @@ def post_bounty(
     db.commit()
     db.refresh(listing)
 
+    approval_note = "poster must approve your claim" if payload.requires_approval else "first-come, no approval needed"
     return {
         "bounty_id": listing.id,
         "posted_by": current_user.handle,
         "amount": payload.amount,
         "memo": payload.memo,
-        "status": "active — claimable via POST /marketplace/bounties/{id}/claim",
+        "requires_approval": payload.requires_approval,
+        "status": f"active — {approval_note}",
     }
 
 
@@ -156,7 +157,11 @@ def claim_bounty(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Claim an active bounty. Poster decides eligibility via memo; network enforces first-claim."""
+    """
+    Request to claim a bounty.
+    - If requires_approval=False: tokens transfer immediately (first-come).
+    - If requires_approval=True: sets pending_claimant. Poster must approve via POST /bounties/{id}/approve.
+    """
     listing = db.query(Listing).filter(
         Listing.id == bounty_id,
         Listing.is_active == True,
@@ -169,27 +174,116 @@ def claim_bounty(
     if current_user.id == poster.id:
         raise HTTPException(status_code=403, detail="Cannot claim your own bounty")
 
+    if listing.pending_claimant_id:
+        pending = db.query(User).filter(User.id == listing.pending_claimant_id).first()
+        raise HTTPException(status_code=409,
+            detail=f"A claim from @{pending.handle if pending else '?'} is pending approval")
+
+    if not listing.requires_approval:
+        # Immediate transfer
+        return _execute_bounty(listing, poster, current_user, db, bounty_id)
+
+    # Queue for approval
+    listing.pending_claimant_id = current_user.id
+    db.commit()
+    notify(db, poster.id, "bounty_claim_request",
+           f"@{current_user.handle} is requesting to claim your bounty #{bounty_id} "
+           f'("{listing.memo or ""}"). Approve: POST /marketplace/bounties/{bounty_id}/approve')
+    db.commit()
+    return {
+        "bounty_id": bounty_id,
+        "status": "pending_approval",
+        "claimant": current_user.handle,
+        "message": f"Claim submitted. @{poster.handle} must approve before tokens transfer.",
+    }
+
+
+@router.post("/bounties/{bounty_id}/approve", status_code=200)
+@limiter.limit("30/hour")
+def approve_bounty(
+    request: Request,
+    bounty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Poster approves the pending claim — tokens transfer to claimant."""
+    listing = db.query(Listing).filter(
+        Listing.id == bounty_id,
+        Listing.is_active == True,
+        Listing.asset_id == None,
+    ).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Bounty not found or already claimed")
+    if listing.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the bounty poster can approve")
+    if not listing.pending_claimant_id:
+        raise HTTPException(status_code=409, detail="No pending claim to approve")
+
+    claimant = db.query(User).filter(User.id == listing.pending_claimant_id).first()
+    if not claimant:
+        raise HTTPException(status_code=404, detail="Claimant not found")
+
+    poster = current_user
+    return _execute_bounty(listing, poster, claimant, db, bounty_id)
+
+
+@router.post("/bounties/{bounty_id}/deny", status_code=200)
+@limiter.limit("30/hour")
+def deny_bounty(
+    request: Request,
+    bounty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Poster denies the pending claim — bounty stays open for new claimants."""
+    listing = db.query(Listing).filter(
+        Listing.id == bounty_id,
+        Listing.is_active == True,
+        Listing.asset_id == None,
+    ).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Bounty not found")
+    if listing.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the bounty poster can deny")
+    if not listing.pending_claimant_id:
+        raise HTTPException(status_code=409, detail="No pending claim")
+
+    denied = db.query(User).filter(User.id == listing.pending_claimant_id).first()
+    listing.pending_claimant_id = None
+    db.commit()
+    if denied:
+        notify(db, denied.id, "bounty_denied",
+               f"Your claim on bounty #{bounty_id} was not approved. The bounty remains open.")
+        db.commit()
+    return {"bounty_id": bounty_id, "status": "open", "denied": denied.handle if denied else "?"}
+
+
+def _execute_bounty(listing, poster, claimant, db, bounty_id):
+    """Internal: transfer escrow to claimant, close listing."""
     fee = round(listing.price * TRADE_FEE_RATE, 6)
     net = round(listing.price - fee, 6)
 
-    current_user.token_balance = round(current_user.token_balance + net, 6)
+    claimant.token_balance = round(claimant.token_balance + net, 6)
     listing.is_active = False
+    listing.approved_by = poster.id
 
     db.add(BankLedger(event_type="bounty_fee", amount=fee,
-                      note=f"bounty {bounty_id} claimed by {current_user.handle}"))
-    db.add(TokenEvent(event_type="bounty_claimed", user_id=current_user.id, amount=net,
+                      note=f"bounty {bounty_id} claimed by {claimant.handle}"))
+    db.add(TokenEvent(event_type="bounty_claimed", user_id=claimant.id, amount=net,
                       note=f"claimed bounty {bounty_id} from {poster.handle}"))
-
     db.commit()
     recalculate_all_user_scores(db)
 
     notify(db, poster.id, "bounty_claimed",
-           f"{current_user.handle} claimed your bounty #{bounty_id} ({net:.4f} tokens transferred).")
+           f"@{claimant.handle} received your bounty #{bounty_id} — {net:.4f} A transferred.")
+    notify(db, claimant.id, "bounty_received",
+           f"Bounty #{bounty_id} approved! {net:.4f} A added to your balance.")
     db.commit()
 
     return {
         "bounty_id": bounty_id,
-        "claimed_by": current_user.handle,
+        "claimed_by": claimant.handle,
+        "approved_by": poster.handle,
         "amount": listing.price,
         "fee": fee,
         "net_received": net,
@@ -207,11 +301,17 @@ def list_bounties(db: Session = Depends(get_db)):
     result = []
     for b in bounties:
         poster = db.query(User).filter(User.id == b.seller_id).first()
+        pending = None
+        if b.pending_claimant_id:
+            p = db.query(User).filter(User.id == b.pending_claimant_id).first()
+            pending = p.handle if p else "?"
         result.append({
             "bounty_id": b.id,
             "posted_by": poster.handle if poster else "?",
             "amount": b.price,
             "memo": b.memo,
+            "requires_approval": bool(b.requires_approval),
+            "pending_claim_from": pending,
             "claim_endpoint": f"POST /marketplace/bounties/{b.id}/claim",
         })
     return result

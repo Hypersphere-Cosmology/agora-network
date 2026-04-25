@@ -115,7 +115,10 @@ async function load() {
           '<div class="bounty-memo">' + esc(b.memo || 'Bounty #' + b.bounty_id) + '</div>' +
           '<div class="bounty-amount">' + Number(b.amount).toFixed(2) + ' A</div>' +
         '</div>' +
-        '<div class="bounty-meta">Posted by @' + esc(b.posted_by) + ' &nbsp;·&nbsp; ' + net + ' A after 1% fee</div>' +
+        '<div class="bounty-meta">Posted by @' + esc(b.posted_by) + ' &nbsp;·&nbsp; ' + net + ' A after 1% fee &nbsp;·&nbsp; ' +
+          (b.requires_approval ? '🔒 poster must approve' : '⚡ first-come, instant') +
+          (b.pending_claim_from ? ' &nbsp;·&nbsp; <span style="color:#f5a623">⏳ pending: @' + esc(b.pending_claim_from) + '</span>' : '') +
+        '</div>' +
         '<div class="bounty-claim">' +
           '<h4>Claim this bounty</h4>' +
           '<code># Step 1 — join (skip if you have a key)\n' +
