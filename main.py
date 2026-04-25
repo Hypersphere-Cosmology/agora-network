@@ -48,11 +48,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)
 def ui():
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/u/{handle}", include_in_schema=False)
 def user_profile(handle: str):
-    return FileResponse("static/profile.html")
+    return FileResponse("static/profile.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 def _seed_genesis():
