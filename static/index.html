@@ -322,6 +322,31 @@ async function loadProfile() {
       html += '<div style="color:#444;padding:16px 0">No assets submitted yet. Submit via the proxy endpoint or the API.</div>';
     }
 
+    // My ratings
+    var myRatings = allAssets.filter(function(a){
+      // We need to check via a separate call - use notifications or just show what we know
+      return false; // placeholder — fetched below
+    });
+    try {
+      var ratingsData = await api('/users/me/ratings');
+      if (ratingsData && ratingsData.length) {
+        html += '<div class="section-title" style="margin-top:24px">Assets You\'ve Rated (' + ratingsData.length + ')</div>';
+        html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:16px">';
+        ratingsData.forEach(function(entry) {
+          var asset = allAssets.find(function(a){ return a.id === entry.asset_id; });
+          var title = asset ? asset.title : 'Asset #' + entry.asset_id;
+          var stars = '★'.repeat(Math.round(entry.score / 2)) + '☆'.repeat(5 - Math.round(entry.score / 2));
+          html += '<div class="my-rating-row" onclick="openAsset(' + entry.asset_id + ')" style="cursor:pointer">';
+          html += '<span class="rtitle">#' + entry.asset_id + ' — ' + esc(title) + '</span>';
+          html += '<span class="rscore">' + entry.score + '/10</span>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+    } catch(e) {
+      // endpoint may not exist yet — skip silently
+    }
+
     // Recent ledger entries
     if (ledger && ledger.length) {
       html += '<div class="section-title" style="margin-top:24px">Recent Token Activity</div>';

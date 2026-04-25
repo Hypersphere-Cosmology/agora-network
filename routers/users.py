@@ -82,6 +82,25 @@ def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.get("/me/ratings")
+def get_my_ratings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return all assets this user has rated, with their scores."""
+    from db import Rating, Asset
+    ratings = db.query(Rating).filter(Rating.user_id == current_user.id).order_by(Rating.rated_at.desc()).all()
+    result = []
+    for r in ratings:
+        asset = db.query(Asset).filter(Asset.id == r.asset_id).first()
+        result.append({
+            "asset_id": r.asset_id,
+            "score": r.score,
+            "rated_at": r.rated_at.isoformat() if r.rated_at else None,
+            "asset_title": asset.title if asset else None,
+            "asset_avg": asset.avg_rating if asset else None,
+            "asset_rating_count": asset.rating_count if asset else None,
+        })
+    return result
+
+
 @router.post("/me/rotate-key")
 def rotate_key(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Rotate your API key. Old key is invalidated immediately. New key shown once."""
