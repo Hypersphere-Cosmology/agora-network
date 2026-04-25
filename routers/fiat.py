@@ -463,3 +463,34 @@ def pending_purchases(
             "reject_endpoint": f"POST /fiat/buy/{p.id}/reject?reason=...",
         })
     return result
+
+
+@router.get("/treasury/status")
+async def treasury_status(db: Session = Depends(get_db)):
+    """Public — show treasury address, balance, and withdrawal policy."""
+    treasury = blockchain.load_treasury()
+    addr_row = db.query(PaymentAddress).filter(
+        PaymentAddress.currency == "sol", PaymentAddress.is_active == True).first()
+
+    sol_balance = 0.0
+    sol_price = 0.0
+    if treasury:
+        try:
+            sol_balance = await blockchain.get_sol_balance(treasury["pubkey"])
+            sol_price = await blockchain.get_sol_price_usd()
+        except Exception:
+            pass
+
+    # Bank fee income
+    from db import BankLedger
+    bank_balance = sum(e.amount for e in db.query(BankLedger).all())
+
+    return {
+        "treasury_address": addr_row.address if addr_row else "not configured",
+        "sol_balance": sol_balance,
+        "usd_value": round(sol_balance * sol_price, 2) if sol_price else "unknown",
+        "network_fee_income": round(bank_balance, 4),
+        "withdrawal_policy": "Accumulates by default. Requires governance vote to disburse.",
+        "governance_url": "/governance-portal",
+        "faq_url": "/faq",
+    }

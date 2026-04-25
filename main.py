@@ -66,6 +66,10 @@ def public_bounties():
 def governance_portal():
     return FileResponse("static/governance.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+@app.get("/faq", include_in_schema=False)
+def faq():
+    return FileResponse("static/faq.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 
 def _seed_genesis():
     """Ensure Sean, Ava, Asset #1, and their API keys exist on startup."""
