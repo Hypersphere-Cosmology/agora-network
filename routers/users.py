@@ -82,6 +82,26 @@ def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.get("/me/ledger")
+def get_my_ledger(limit: int = 50, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    """Personal token activity log — all inflows and outflows."""
+    from db import TokenEvent
+    events = db.query(TokenEvent).filter(
+        TokenEvent.user_id == current_user.id
+    ).order_by(TokenEvent.id.desc()).limit(limit).all()
+    return [
+        {
+            "id": e.id,
+            "event_type": e.event_type,
+            "amount": e.amount,
+            "note": e.note,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in events
+    ]
+
+
 @router.get("/me/ratings")
 def get_my_ratings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Return all assets this user has rated, with their scores."""

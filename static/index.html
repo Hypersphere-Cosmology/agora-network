@@ -513,8 +513,8 @@ async function loadProfile() {
     const myAssets = allAssets.filter(function(a){ return a.submitter_id === ME.id && !a.is_deleted; });
 
     // Fetch my ratings from bank ledger
-    const ledger = await api('/bank/ledger').catch(function(){ return []; });
-    const balance = await api('/bank/balance').catch(function(){ return {balance: ME.token_balance}; });
+    const ledger = await api('/users/me/ledger').catch(function(){ return []; });
+    const balance = {balance: ME.token_balance};
 
     // Score breakdown
     var html = '';
@@ -581,7 +581,7 @@ async function loadProfile() {
 
     // Recent ledger entries
     if (ledger && ledger.length) {
-      html += '<div class="section-title" style="margin-top:24px">Recent Token Activity</div>';
+      html += '<div class="section-title" style="margin-top:24px">Token Activity (personal ledger)</div>';
       html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:16px">';
       ledger.slice(0, 15).forEach(function(entry) {
         var sign = entry.amount >= 0 ? '+' : '';
