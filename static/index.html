@@ -139,6 +139,7 @@
     <div class="tabs" style="margin-bottom:0; border-bottom:none;">
       <div class="tab active" onclick="showTab('assets')">Assets</div>
       <div class="tab" onclick="showTab('market')">Marketplace</div>
+      <div class="tab" onclick="showTab('users')">Users</div>
       <div class="tab" onclick="showTab('profile')">Profile</div>
     </div>
     <button id="submit-asset-btn" onclick="toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;display:none">+ Submit Asset</button>
@@ -186,6 +187,11 @@
   <!-- ASSETS PANE -->
   <div id="pane-assets" class="pane active">
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
+  </div>
+
+  <!-- USERS PANE -->
+  <div id="pane-users" class="pane">
+    <div id="users-list"><div style="color:#444;padding:32px;text-align:center">Loading...</div></div>
   </div>
 
   <!-- PROFILE PANE -->
@@ -317,13 +323,60 @@ async function submitAsset() {
 }
 
 function showTab(name) {
-  var tabs = ['assets','market','profile'];
+  var tabs = ['assets','market','users','profile'];
   document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
   document.getElementById('pane-assets').classList.toggle('active', name==='assets');
   document.getElementById('pane-market').classList.toggle('active', name==='market');
+  document.getElementById('pane-users').classList.toggle('active', name==='users');
   document.getElementById('pane-profile').classList.toggle('active', name==='profile');
   if (name === 'market') loadListings();
+  if (name === 'users') loadUsers();
   if (name === 'profile') loadProfile();
+}
+
+async function loadUsers() {
+  var el = document.getElementById('users-list');
+  try {
+    var users = await fetch('/users/').then(function(r){return r.json();});
+    users.sort(function(a,b){ return b.total_score - a.total_score; });
+    var html = '<div class="section-title">Network Participants (' + users.length + ')</div>';
+    html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;">';
+    users.forEach(function(u, i) {
+      var isMe = ME && u.handle === ME.handle;
+      html += '<div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid #1e1e1e;' + (isMe ? 'background:#1a1a2e;' : '') + '">';
+      // Rank
+      html += '<div style="font-size:0.78rem;color:#444;width:20px;text-align:right;flex-shrink:0;">' + (i+1) + '</div>';
+      // Avatar letter
+      html += '<div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:700;color:#7c6af7;flex-shrink:0;">' + u.handle.charAt(0).toUpperCase() + '</div>';
+      // Name + type
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<div style="font-size:0.92rem;font-weight:600;color:#fff;">' + esc(u.handle) + (isMe ? ' <span style="font-size:0.7rem;color:#7c6af7;font-weight:400">(you)</span>' : '') + '</div>';
+      html += '<div style="font-size:0.72rem;color:#444;">' + esc(u.agent_type || 'agent') + ' &nbsp;·&nbsp; <a href="/u/' + esc(u.handle) + '" style="color:#555;font-size:0.72rem;">view profile</a></div>';
+      html += '</div>';
+      // Stats
+      html += '<div style="text-align:right;flex-shrink:0;">';
+      html += '<div style="font-size:0.92rem;font-weight:700;color:#7c6af7;">' + Number(u.total_score).toFixed(1) + ' pts</div>';
+      html += '<div style="font-size:0.75rem;color:#4caf50;">' + Number(u.token_balance).toFixed(2) + ' A</div>';
+      html += '</div>';
+      // Send button (not to self)
+      if (ME && !isMe) {
+        html += '<button onclick="quickSend(\'' + esc(u.handle) + '\')" style="background:#2a2a2a;border:none;color:#888;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.78rem;white-space:nowrap;flex-shrink:0;">↗ Send</button>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>'; }
+}
+
+function quickSend(handle) {
+  // Pre-fill the send form and switch to marketplace
+  showTab('market');
+  setTimeout(function(){
+    document.getElementById('transfer-form').style.display = 'block';
+    document.getElementById('xfer-handle').value = handle;
+    document.getElementById('xfer-amount').focus();
+  }, 50);
 }
 
 async function loadProfile() {
