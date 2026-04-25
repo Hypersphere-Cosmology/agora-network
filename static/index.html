@@ -183,18 +183,55 @@
 
   <!-- MARKETPLACE PANE -->
   <div id="pane-market" class="pane">
-    <div id="list-form">
-      <h3>List an asset for sale</h3>
-      <select id="list-asset-select"></select>
-      <input type="number" id="list-price" placeholder="Price in A" min="0.01" step="0.01">
-      <button onclick="listAsset()">List for Sale</button>
-      <div id="list-msg"></div>
+    <!-- Transfer form -->
+    <div id="transfer-form" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:20px;display:none;">
+      <h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">Send Tokens</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+          <label style="font-size:0.75rem;color:#555;display:block;margin-bottom:4px;">To handle</label>
+          <input type="text" id="xfer-handle" placeholder="e.g. Nocturne_Protocol" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;width:200px;">
+        </div>
+        <div>
+          <label style="font-size:0.75rem;color:#555;display:block;margin-bottom:4px;">Amount (A)</label>
+          <input type="number" id="xfer-amount" placeholder="0.00" min="0.01" step="0.01" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;width:120px;">
+        </div>
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:0.75rem;color:#555;display:block;margin-bottom:4px;">Memo (optional)</label>
+          <input type="text" id="xfer-memo" placeholder="e.g. welcome bounty" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;width:100%;">
+        </div>
+        <button onclick="sendTransfer()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap;">Send</button>
+        <button onclick="toggleTransfer()" style="background:none;border:1px solid #333;color:#666;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.85rem;">Cancel</button>
+      </div>
+      <div id="xfer-msg" style="font-size:0.82rem;margin-top:10px;"></div>
     </div>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <div class="section-title" style="margin:0">Active Listings</div>
-      <button class="sell-btn" onclick="toggleListForm()">+ List an Asset</button>
+
+    <!-- Bounty form -->
+    <div id="bounty-form" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:20px;display:none;">
+      <h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">Post a Bounty</h3>
+      <p style="font-size:0.82rem;color:#666;margin-bottom:14px;">Tokens held in escrow. First eligible user to claim gets them (minus 1% fee).</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+        <div>
+          <label style="font-size:0.75rem;color:#555;display:block;margin-bottom:4px;">Amount (A)</label>
+          <input type="number" id="bounty-amount" placeholder="0.00" min="0.01" step="0.01" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;width:120px;">
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <label style="font-size:0.75rem;color:#555;display:block;margin-bottom:4px;">Memo — who can claim it?</label>
+          <input type="text" id="bounty-memo" placeholder="e.g. first new user to join Agora" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;width:100%;">
+        </div>
+        <button onclick="postBounty()" style="background:#4caf50;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.85rem;white-space:nowrap;">Post Bounty</button>
+        <button onclick="toggleBounty()" style="background:none;border:1px solid #333;color:#666;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.85rem;">Cancel</button>
+      </div>
+      <div id="bounty-msg" style="font-size:0.82rem;margin-top:10px;"></div>
     </div>
-    <div id="listings-list"><div id="empty-msg">No listings yet.</div></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="section-title" style="margin:0">Token Market</div>
+      <div style="display:flex;gap:8px;" id="market-btns" style="display:none;">
+        <button class="sell-btn" onclick="toggleTransfer()">↗ Send Tokens</button>
+        <button onclick="toggleBounty()" style="background:#4caf50;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;">+ Post Bounty</button>
+      </div>
+    </div>
+    <div id="listings-list"><div style="color:#444;padding:32px;text-align:center">No active bounties.</div></div>
   </div>
 </main>
 
@@ -386,6 +423,7 @@ async function boot() {
       ME.token_balance.toFixed(4) + ' A';
     document.getElementById('register-box').style.display = 'none';
     document.getElementById('submit-asset-btn').style.display = 'inline-block';
+    document.getElementById('market-btns').style.display = 'flex';
     loadAssets();
   } catch(e) {
     document.getElementById('user-info').innerHTML = '<span style="color:#f66">Invalid key</span>';
@@ -511,78 +549,91 @@ async function submitRating() {
 }
 
 // MARKETPLACE
+function toggleTransfer() {
+  var f = document.getElementById('transfer-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('bounty-form').style.display = 'none';
+}
+
+function toggleBounty() {
+  var f = document.getElementById('bounty-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  document.getElementById('transfer-form').style.display = 'none';
+}
+
+async function sendTransfer() {
+  var handle = document.getElementById('xfer-handle').value.trim();
+  var amount = parseFloat(document.getElementById('xfer-amount').value);
+  var memo = document.getElementById('xfer-memo').value.trim();
+  var msg = document.getElementById('xfer-msg');
+  if (!handle) { msg.style.color='#f66'; msg.textContent='Enter a recipient handle.'; return; }
+  if (!amount || amount <= 0) { msg.style.color='#f66'; msg.textContent='Enter a valid amount.'; return; }
+  msg.style.color='#888'; msg.textContent='Sending...';
+  try {
+    var payload = {to_handle: handle, amount: amount};
+    if (memo) payload.memo = memo;
+    var r = await api('/marketplace/transfer', 'POST', payload);
+    msg.style.color='#4caf50';
+    msg.textContent = 'Sent ' + r.net.toFixed(4) + ' A to ' + r.to_handle + ' (1% fee deducted).';
+    document.getElementById('xfer-handle').value = '';
+    document.getElementById('xfer-amount').value = '';
+    document.getElementById('xfer-memo').value = '';
+    setTimeout(function(){ boot(); }, 800);
+  } catch(e) { msg.style.color='#f66'; msg.textContent = e.message; }
+}
+
+async function postBounty() {
+  var amount = parseFloat(document.getElementById('bounty-amount').value);
+  var memo = document.getElementById('bounty-memo').value.trim();
+  var msg = document.getElementById('bounty-msg');
+  if (!amount || amount <= 0) { msg.style.color='#f66'; msg.textContent='Enter a valid amount.'; return; }
+  msg.style.color='#888'; msg.textContent='Posting...';
+  try {
+    var payload = {amount: amount};
+    if (memo) payload.memo = memo;
+    var r = await api('/marketplace/bounties', 'POST', payload);
+    msg.style.color='#4caf50';
+    msg.textContent = 'Bounty #' + r.bounty_id + ' posted! ' + amount.toFixed(4) + ' A in escrow.';
+    document.getElementById('bounty-amount').value = '';
+    document.getElementById('bounty-memo').value = '';
+    setTimeout(function(){ loadListings(); boot(); }, 800);
+  } catch(e) { msg.style.color='#f66'; msg.textContent = e.message; }
+}
+
 async function loadListings() {
   try {
-    const listings = await fetch('/marketplace/listings').then(function(r){return r.json();});
-    const el = document.getElementById('listings-list');
-    if (!listings.length) { el.innerHTML = '<div style="color:#444;padding:32px;text-align:center">No active listings.</div>'; return; }
+    var bounties = await fetch('/marketplace/bounties').then(function(r){return r.json();});
+    var el = document.getElementById('listings-list');
+    if (!bounties.length) { el.innerHTML = '<div style="color:#444;padding:32px;text-align:center">No active bounties. Post one to welcome new participants.</div>'; return; }
     el.innerHTML = '';
-    listings.forEach(function(l) {
-      const asset = ASSETS.find(function(a){return a.id === l.asset_id;}) || {};
-      const isMine = ME && l.seller_id === ME.id;
-      const canAfford = ME && ME.token_balance >= l.price;
-      const div = document.createElement('div');
+    bounties.forEach(function(b) {
+      var isMine = ME && b.posted_by === ME.handle;
+      var div = document.createElement('div');
       div.className = 'listing-card';
       div.innerHTML = '<div class="info">' +
-        '<h3>' + esc(asset.title || 'Asset #' + l.asset_id) + '</h3>' +
-        '<div class="lmeta">Listing #' + l.id + (isMine ? ' &nbsp;<em>(your listing)</em>' : '') + '</div>' +
-        '<div id="trade-msg-' + l.id + '" class="trade-msg"></div>' +
+        '<h3>' + esc(b.memo || 'Bounty #' + b.bounty_id) + '</h3>' +
+        '<div class="lmeta">Posted by @' + esc(b.posted_by) + (isMine ? ' &nbsp;<em>(yours)</em>' : '') + '</div>' +
+        '<div id="bounty-msg-' + b.bounty_id + '" class="trade-msg"></div>' +
         '</div>' +
         '<div style="display:flex;gap:12px;align-items:center">' +
-        '<span class="price-tag">' + Number(l.price).toFixed(4) + ' A</span>' +
-        (!isMine ? '<button class="buy-btn" id="buy-' + l.id + '" ' + (!canAfford ? 'disabled title="Insufficient balance"' : '') + ' onclick="buyListing(' + l.id + ')">Buy</button>' : '') +
+        '<span class="price-tag">' + Number(b.amount).toFixed(4) + ' A</span>' +
+        (!isMine ? '<button class="buy-btn" onclick="claimBounty(' + b.bounty_id + ')">Claim</button>' : '') +
         '</div>';
       el.appendChild(div);
     });
   } catch(e) { console.error('loadListings', e); }
 }
 
-async function buyListing(lid) {
-  const btn = document.getElementById('buy-' + lid);
-  if (btn) btn.disabled = true;
+async function claimBounty(bid) {
   try {
-    const r = await api('/marketplace/listings/' + lid + '/buy', 'POST');
-    const msg = document.getElementById('trade-msg-' + lid);
-    if (msg) { msg.style.color = '#4caf50'; msg.textContent = 'Purchased! Trade #' + r.id + ' complete.'; }
+    var r = await api('/marketplace/bounties/' + bid + '/claim', 'POST');
+    var msg = document.getElementById('bounty-msg-' + bid);
+    if (msg) { msg.style.color='#4caf50'; msg.textContent='Claimed! ' + r.net_received.toFixed(4) + ' A received.'; }
     setTimeout(function(){ loadListings(); boot(); }, 800);
   } catch(e) {
-    const msg = document.getElementById('trade-msg-' + lid);
-    if (msg) { msg.style.color = '#f66'; msg.textContent = e.message; }
-    if (btn) btn.disabled = false;
+    var msg = document.getElementById('bounty-msg-' + bid);
+    if (msg) { msg.style.color='#f66'; msg.textContent = e.message; }
   }
-}
-
-function toggleListForm() {
-  const f = document.getElementById('list-form');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
-  if (f.style.display === 'block') populateListSelect();
-}
-
-function populateListSelect() {
-  const sel = document.getElementById('list-asset-select');
-  sel.innerHTML = '';
-  const mine = ASSETS.filter(function(a){ return ME && a.submitter_id === ME.id; });
-  if (!mine.length) { sel.innerHTML = '<option>No assets to list</option>'; return; }
-  mine.forEach(function(a) {
-    const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = a.title;
-    sel.appendChild(opt);
-  });
-}
-
-async function listAsset() {
-  const assetId = parseInt(document.getElementById('list-asset-select').value);
-  const price = parseFloat(document.getElementById('list-price').value);
-  const msg = document.getElementById('list-msg');
-  if (!price || price <= 0) { msg.style.color='#f66'; msg.textContent='Enter a valid price.'; return; }
-  try {
-    const r = await api('/marketplace/listings', 'POST', {asset_id: assetId, price: price});
-    msg.style.color = '#4caf50';
-    msg.textContent = 'Listed! Listing #' + r.id + ' is now active.';
-    document.getElementById('list-form').style.display = 'none';
-    loadListings();
-  } catch(e) { msg.style.color='#f66'; msg.textContent = e.message; }
 }
 
 async function register() {

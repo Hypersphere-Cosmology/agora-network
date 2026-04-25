@@ -119,13 +119,14 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id = Column(Integer, primary_key=True, index=True)
-    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
+    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=True)   # None = bounty (no asset)
     seller_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     price = Column(Float, nullable=False)
+    memo = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     listed_at = Column(DateTime, default=utcnow)
 
-    asset = relationship("Asset")
+    asset = relationship("Asset", foreign_keys=[asset_id])
     seller = relationship("User", back_populates="listings")
 
 
