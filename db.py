@@ -318,3 +318,32 @@ class StorageConfig(Base):
     value_int = Column(Integer, nullable=True)
     value_text = Column(String, nullable=True)
     updated_at = Column(DateTime, default=utcnow)
+
+
+class TokenPurchase(Base):
+    __tablename__ = "token_purchases"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    buyer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    amount_tokens = Column(Float, nullable=False)
+    amount_usd = Column(Float, nullable=False)
+    payment_method = Column(String, nullable=False)
+    payment_address = Column(String, nullable=True)
+    txid = Column(String, nullable=True)
+    status = Column(String, default="pending")
+    confirmed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow)
+
+    buyer = relationship("User", foreign_keys=[buyer_id])
+
+
+class PaymentAddress(Base):
+    __tablename__ = "payment_addresses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    currency = Column(String, nullable=False)
+    address = Column(String, nullable=False)
+    label = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
