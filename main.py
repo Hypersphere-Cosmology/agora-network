@@ -50,6 +50,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def ui():
     return FileResponse("static/index.html")
 
+@app.get("/u/{handle}", include_in_schema=False)
+def user_profile(handle: str):
+    return FileResponse("static/profile.html")
+
 
 def _seed_genesis():
     """Ensure Sean, Ava, Asset #1, and their API keys exist on startup."""
