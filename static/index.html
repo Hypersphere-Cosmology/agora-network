@@ -123,10 +123,52 @@
     <div id="reg-msg"></div>
   </div>
 
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('assets')">Assets</div>
-    <div class="tab" onclick="showTab('market')">Marketplace</div>
-    <div class="tab" onclick="showTab('profile')">Profile</div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+    <div class="tabs" style="margin-bottom:0; border-bottom:none;">
+      <div class="tab active" onclick="showTab('assets')">Assets</div>
+      <div class="tab" onclick="showTab('market')">Marketplace</div>
+      <div class="tab" onclick="showTab('profile')">Profile</div>
+    </div>
+    <button id="submit-asset-btn" onclick="toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;display:none">+ Submit Asset</button>
+  </div>
+  <div style="border-bottom:1px solid #222;margin-bottom:20px;"></div>
+
+  <!-- SUBMIT FORM -->
+  <div id="submit-form" style="display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:24px;margin-bottom:20px;">
+    <h3 style="color:#fff;font-size:0.95rem;margin-bottom:16px;">Submit an Asset</h3>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.78rem;color:#666;display:block;margin-bottom:4px;">Title *</label>
+      <input type="text" id="sf-title" placeholder="A clear, descriptive title" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:9px 12px;border-radius:6px;font-size:0.88rem;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.78rem;color:#666;display:block;margin-bottom:4px;">Description (one line, optional)</label>
+      <input type="text" id="sf-desc" placeholder="Brief summary for the asset list" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:9px 12px;border-radius:6px;font-size:0.88rem;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.78rem;color:#666;display:block;margin-bottom:4px;">Content * — your actual work</label>
+      <textarea id="sf-content" rows="8" placeholder="The full text, code, analysis, or specification..." style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:9px 12px;border-radius:6px;font-size:0.85rem;resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
+    </div>
+    <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <label style="font-size:0.78rem;color:#666;display:block;margin-bottom:4px;">Type</label>
+        <select id="sf-type" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;">
+          <option value="concept">concept</option>
+          <option value="code">code</option>
+          <option value="data">data</option>
+          <option value="art">art</option>
+          <option value="other">other</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:0.78rem;color:#666;display:block;margin-bottom:4px;">Modification of (asset #, optional)</label>
+        <input type="number" id="sf-parent" placeholder="e.g. 12" min="1" style="width:120px;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.85rem;">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button onclick="submitAsset()" style="background:#7c6af7;color:#fff;border:none;padding:9px 22px;border-radius:7px;cursor:pointer;font-size:0.88rem;">Submit</button>
+      <button onclick="toggleSubmitForm()" style="background:none;border:1px solid #333;color:#666;padding:9px 16px;border-radius:7px;cursor:pointer;font-size:0.88rem;">Cancel</button>
+      <span id="sf-msg" style="font-size:0.82rem;"></span>
+    </div>
   </div>
 
   <!-- ASSETS PANE -->
@@ -179,6 +221,43 @@ let CURRENT_ID = null;
 let SCORE = null;
 
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); }
+
+function toggleSubmitForm() {
+  var f = document.getElementById('submit-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  if (f.style.display === 'block') document.getElementById('sf-title').focus();
+}
+
+async function submitAsset() {
+  var title = document.getElementById('sf-title').value.trim();
+  var content = document.getElementById('sf-content').value.trim();
+  var desc = document.getElementById('sf-desc').value.trim();
+  var type = document.getElementById('sf-type').value;
+  var parentRaw = document.getElementById('sf-parent').value.trim();
+  var msg = document.getElementById('sf-msg');
+
+  if (!title) { msg.style.color='#f66'; msg.textContent='Title required.'; return; }
+  if (!content) { msg.style.color='#f66'; msg.textContent='Content required.'; return; }
+
+  var payload = { title: title, content: content, asset_type: type };
+  if (desc) payload.description = desc;
+  if (parentRaw) payload.parent_id = parseInt(parentRaw);
+
+  msg.style.color = '#888'; msg.textContent = 'Submitting...';
+  try {
+    var r = await api('/assets/', 'POST', payload);
+    msg.style.color = '#4caf50';
+    msg.textContent = 'Asset #' + r.id + ' submitted! Tokens will mint as ratings arrive.';
+    document.getElementById('sf-title').value = '';
+    document.getElementById('sf-content').value = '';
+    document.getElementById('sf-desc').value = '';
+    document.getElementById('sf-parent').value = '';
+    setTimeout(function(){ toggleSubmitForm(); loadAssets(); boot(); }, 1800);
+  } catch(e) {
+    msg.style.color = '#f66';
+    msg.textContent = e.message;
+  }
+}
 
 function showTab(name) {
   var tabs = ['assets','market','profile'];
@@ -281,6 +360,7 @@ async function boot() {
       ME.total_score.toFixed(1) + ' pts &nbsp;' +
       ME.token_balance.toFixed(4) + ' A';
     document.getElementById('register-box').style.display = 'none';
+    document.getElementById('submit-asset-btn').style.display = 'inline-block';
     loadAssets();
   } catch(e) {
     document.getElementById('user-info').innerHTML = '<span style="color:#f66">Invalid key</span>';
@@ -312,12 +392,17 @@ async function loadAssets() {
       div.onclick = function() { openAsset(a.id); };
       const g = a.is_genesis ? '<span class="badge genesis">genesis</span>' : '';
       const mine = ME && a.submitter_id === ME.id ? '<span class="badge">yours</span>' : '';
-      div.innerHTML = '<h3>Asset ' + (idx+1) + ' &#8212; ' + esc(a.title) + g + mine + '</h3>' +
+      const mod = a.parent_id ? '<span class="badge" style="background:#1a2a3a;color:#7aaaf7">mod of #' + a.parent_id + '</span>' : '';
+      // Check if any other asset has this as parent (has children)
+      const hasChildren = ASSETS.some(function(x){ return x.parent_id === a.id; });
+      const thread = hasChildren ? '<span class="badge" style="color:#888">has modifications</span>' : '';
+      div.innerHTML = '<h3>#' + a.id + ' &#8212; ' + esc(a.title) + g + mine + mod + thread + '</h3>' +
         (a.description ? '<p>' + esc(a.description) + '</p>' : '') +
         '<div class="asset-meta">' +
         '<span class="avg">&#9733; ' + (a.avg_rating || '&#8212;') + '</span>' +
         '<span>' + a.rating_count + ' rating' + (a.rating_count !== 1 ? 's' : '') + '</span>' +
         '<span class="minted">' + Number(a.tokens_minted).toFixed(4) + ' A minted</span>' +
+        '<span style="color:#444">' + esc(a.asset_type||'') + '</span>' +
         '</div>';
       list.appendChild(div);
     });
@@ -335,17 +420,33 @@ async function openAsset(id) {
   try { asset = await api('/assets/' + id); }
   catch(e) { alert('Could not load: ' + e.message); return; }
 
-  document.getElementById('m-title').textContent = asset.title;
+  document.getElementById('m-title').textContent = '#' + asset.id + ' — ' + asset.title;
+  var chain = '';
+  if (asset.parent_id) chain = ' \u00b7 mod of #' + asset.parent_id;
+  var children = ASSETS.filter(function(x){ return x.parent_id === asset.id; });
+  if (children.length) chain += ' \u00b7 ' + children.length + ' modification' + (children.length > 1 ? 's' : '');
   document.getElementById('m-meta').textContent =
     asset.asset_type + ' \u00b7 avg ' + (asset.avg_rating || '\u2014') +
     ' \u00b7 ' + asset.rating_count + ' ratings \u00b7 ' +
-    Number(asset.tokens_minted).toFixed(4) + ' A minted';
+    Number(asset.tokens_minted).toFixed(4) + ' A minted' + chain;
 
   const box = document.getElementById('m-content');
   if (asset.content) {
     box.innerHTML = esc(asset.content).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
   } else {
     box.innerHTML = '<em style="color:#555">No content available.</em>';
+  }
+
+  // Modification button
+  var existingModBtn = document.getElementById('m-mod-btn');
+  if (existingModBtn) existingModBtn.remove();
+  if (ME) {
+    var modBtn = document.createElement('button');
+    modBtn.id = 'm-mod-btn';
+    modBtn.textContent = '+ Submit Modification';
+    modBtn.style.cssText = 'background:#1a2a3a;color:#7aaaf7;border:1px solid #2a3a5a;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-bottom:14px;';
+    modBtn.onclick = (function(aid){ return function(){ closeModal(); document.getElementById('sf-parent').value = aid; document.getElementById('submit-form').style.display='block'; document.getElementById('sf-title').focus(); showTab('assets'); }; })(asset.id);
+    document.getElementById('rate-section').insertBefore(modBtn, document.getElementById('rate-section').firstChild);
   }
 
   const isOwn = ME && asset.submitter_id === ME.id;
