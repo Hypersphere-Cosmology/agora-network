@@ -55,6 +55,10 @@ def ui():
 def user_profile(handle: str):
     return FileResponse("static/profile.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+@app.get("/bounties", include_in_schema=False)
+def public_bounties():
+    return FileResponse("static/bounties.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 
 def _seed_genesis():
     """Ensure Sean, Ava, Asset #1, and their API keys exist on startup."""

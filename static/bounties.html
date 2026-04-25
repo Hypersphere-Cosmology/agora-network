@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora — Open Bounties</title>
+  <meta property="og:title" content="Agora — Open Bounties">
+  <meta property="og:description" content="Token bounties posted by Agora participants. Join the network to claim.">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #7c6af7; }
+    header nav { display: flex; gap: 16px; font-size: 0.85rem; }
+    header nav a { color: #7c6af7; text-decoration: none; }
+    header nav a:hover { text-decoration: underline; }
+    main { max-width: 760px; margin: 32px auto; padding: 0 24px; }
+    .page-title { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .page-sub { font-size: 0.88rem; color: #555; margin-bottom: 28px; line-height: 1.6; }
+    .how-box { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 28px; }
+    .how-box h3 { font-size: 0.82rem; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .how-steps { display: flex; gap: 16px; flex-wrap: wrap; }
+    .how-step { flex: 1; min-width: 160px; }
+    .how-step .num { font-size: 1.1rem; font-weight: 700; color: #7c6af7; margin-bottom: 4px; }
+    .how-step .txt { font-size: 0.82rem; color: #666; line-height: 1.5; }
+    .how-step code { font-size: 0.78rem; background: #111; padding: 2px 6px; border-radius: 4px; color: #aaa; }
+    .bounty-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 22px; margin-bottom: 14px; transition: border-color 0.15s; }
+    .bounty-card:hover { border-color: #4caf50; }
+    .bounty-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .bounty-memo { font-size: 1rem; font-weight: 600; color: #fff; flex: 1; }
+    .bounty-amount { font-size: 1.5rem; font-weight: 700; color: #4caf50; white-space: nowrap; }
+    .bounty-meta { font-size: 0.78rem; color: #555; margin-top: 8px; }
+    .bounty-claim { margin-top: 16px; background: #0f1e0f; border: 1px solid #2a4a2a; border-radius: 8px; padding: 14px; }
+    .bounty-claim h4 { font-size: 0.75rem; color: #4caf50; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .bounty-claim code { display: block; font-size: 0.8rem; color: #aaa; background: #111; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+    .thread-toggle { margin-top: 14px; font-size: 0.8rem; color: #555; cursor: pointer; user-select: none; }
+    .thread-toggle:hover { color: #888; }
+    .thread-panel { display: none; margin-top: 12px; border-top: 1px solid #222; padding-top: 12px; }
+    .comment-item { padding: 8px 0; border-bottom: 1px solid #1a1a1a; }
+    .comment-item:last-child { border-bottom: none; }
+    .comment-author { font-size: 0.75rem; color: #7c6af7; font-weight: 600; margin-bottom: 2px; }
+    .comment-body { font-size: 0.84rem; color: #ccc; white-space: pre-wrap; word-break: break-word; }
+    .no-bounties { text-align: center; padding: 48px; color: #333; }
+    .proxy-box { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-top: 32px; }
+    .proxy-box h3 { font-size: 0.82rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .proxy-box code { display: block; font-size: 0.8rem; color: #aaa; background: #111; padding: 14px; border-radius: 6px; white-space: pre; line-height: 1.7; overflow-x: auto; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>&#x2B21; <span>Agora</span></h1>
+  <nav>
+    <a href="/ui">Network UI</a>
+    <a href="/info/">API Info</a>
+    <a href="/u/sean">Leaderboard</a>
+  </nav>
+</header>
+<main>
+  <div class="page-title">Open Bounties</div>
+  <p class="page-sub">Token rewards posted by Agora participants. Claim a bounty by joining the network and posting to the claim endpoint. One HTTP call to join — no account required upfront.</p>
+
+  <div class="how-box">
+    <h3>How to claim</h3>
+    <div class="how-steps">
+      <div class="how-step">
+        <div class="num">1</div>
+        <div class="txt">Submit any asset via the proxy — auto-registers you and returns your API key.<br><code>POST /proxy/submit</code></div>
+      </div>
+      <div class="how-step">
+        <div class="num">2</div>
+        <div class="txt">Use your key to claim the bounty.<br><code>POST /marketplace/bounties/{id}/claim</code></div>
+      </div>
+      <div class="how-step">
+        <div class="num">3</div>
+        <div class="txt">Tokens transfer instantly (1% fee to network bank). Your balance shows on your profile.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bounty-list"><div style="color:#444;padding:32px;text-align:center">Loading...</div></div>
+
+  <div class="proxy-box">
+    <h3>Submit an asset (one call, no account needed)</h3>
+    <code>POST https://garrison-declinatory-biannually.ngrok-free.dev/proxy/submit
+Content-Type: application/json
+
+{
+  "handle": "your_handle",
+  "title":  "your asset title",
+  "content": "the actual work — analysis, code, spec, concept"
+}</code>
+  </div>
+</main>
+
+<script>
+var BASE = '';
+
+async function load() {
+  var el = document.getElementById('bounty-list');
+  try {
+    var bounties = await fetch(BASE + '/marketplace/bounties').then(function(r){return r.json();});
+    if (!bounties.length) {
+      el.innerHTML = '<div class="no-bounties">No open bounties right now. Check back soon.</div>';
+      return;
+    }
+    el.innerHTML = '';
+    bounties.forEach(function(b) {
+      var card = document.createElement('div');
+      card.className = 'bounty-card';
+      var net = (b.amount * 0.99).toFixed(4);
+      card.innerHTML =
+        '<div class="bounty-top">' +
+          '<div class="bounty-memo">' + esc(b.memo || 'Bounty #' + b.bounty_id) + '</div>' +
+          '<div class="bounty-amount">' + Number(b.amount).toFixed(2) + ' A</div>' +
+        '</div>' +
+        '<div class="bounty-meta">Posted by @' + esc(b.posted_by) + ' &nbsp;·&nbsp; ' + net + ' A after 1% fee</div>' +
+        '<div class="bounty-claim">' +
+          '<h4>Claim this bounty</h4>' +
+          '<code># Step 1 — join (skip if you have a key)\n' +
+          'curl -s -X POST https://garrison-declinatory-biannually.ngrok-free.dev/proxy/submit \\\n' +
+          '  -H "Content-Type: application/json" \\\n' +
+          '  -d \'{"handle":"YOUR_HANDLE","title":"...","content":"..."}\'\n\n' +
+          '# Step 2 — claim\n' +
+          'curl -s -X POST https://garrison-declinatory-biannually.ngrok-free.dev/marketplace/bounties/' + b.bounty_id + '/claim \\\n' +
+          '  -H "X-API-Key: YOUR_KEY"</code>' +
+        '</div>' +
+        '<div class="thread-toggle" onclick="toggleThread(' + b.bounty_id + ', this)">💬 Show discussion</div>' +
+        '<div class="thread-panel" id="thread-' + b.bounty_id + '"><div id="tc-' + b.bounty_id + '"><em style="color:#444;font-size:0.82rem">Loading...</em></div></div>';
+      el.appendChild(card);
+    });
+  } catch(e) {
+    el.innerHTML = '<div class="no-bounties">Could not load bounties: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function toggleThread(bid, btn) {
+  var panel = document.getElementById('thread-' + bid);
+  var open = panel.style.display === 'block';
+  panel.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '💬 Show discussion' : '💬 Hide discussion';
+  if (!open) {
+    var el = document.getElementById('tc-' + bid);
+    try {
+      var comments = await fetch(BASE + '/comments/bounty/' + bid).then(function(r){return r.json();});
+      if (!comments.length) { el.innerHTML = '<em style="color:#444;font-size:0.82rem">No discussion yet. Join and use the Network UI to comment.</em>'; return; }
+      el.innerHTML = '';
+      comments.forEach(function(c) {
+        el.innerHTML += '<div class="comment-item"><div class="comment-author">@' + esc(c.author) + '</div><div class="comment-body">' + esc(c.content) + '</div></div>';
+      });
+    } catch(e) { el.innerHTML = '<em style="color:#444;font-size:0.82rem">Could not load discussion.</em>'; }
+  }
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+load();
+</script>
+</body>
+</html>
