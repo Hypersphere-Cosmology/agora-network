@@ -628,6 +628,40 @@ async function loadProfile() {
       // endpoint may not exist yet — skip silently
     }
 
+    // My service orders
+    try {
+      var orders = await api('/services/orders/mine');
+      var allOrderItems = (orders.buying || []).concat((orders.selling || []).map(function(o){o._role='seller';return o;}));
+      if (allOrderItems.length) {
+        html += '<div class="section-title" style="margin-top:24px">Service Orders</div>';
+        html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:16px">';
+        allOrderItems.slice(0, 10).forEach(function(o) {
+          var role = o.role || o._role || 'buyer';
+          var canFeedback = (o.status === 'complete' || o.status === 'delivered');
+          var statusCls = 'status-' + (o.status || 'pending');
+          html += '<div class="my-rating-row" style="flex-wrap:wrap;gap:6px;">';
+          html += '<span class="rtitle">Order #' + o.order_id + ' — ' + esc(o.service||'?') + '</span>';
+          html += '<span class="order-status-badge ' + statusCls + '">' + esc(o.status) + '</span>';
+          html += '<span style="font-size:0.75rem;color:#555;">' + role + ' · ' + Number(o.total_tokens).toFixed(2) + ' A</span>';
+          if (canFeedback && role === 'buyer') {
+            html += '<button onclick="showFeedbackForm(' + o.order_id + ','' + esc(o.provider) + '')" style="background:none;border:1px solid #333;color:#7c6af7;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;">Leave Review</button>';
+          }
+          html += '</div>';
+          html += '<div id="fb-form-' + o.order_id + '" style="display:none;padding:10px 0;border-bottom:1px solid #1e1e1e;">';
+          html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">';
+          for (var s = 1; s <= 5; s++) {
+            html += '<span onclick="selectFbStar(' + o.order_id + ',' + s + ')" id="fbstar-' + o.order_id + '-' + s + '" style="font-size:1.2rem;cursor:pointer;color:#333;">★</span>';
+          }
+          html += '</div>';
+          html += '<textarea id="fbcomment-' + o.order_id + '" rows="2" placeholder="Optional comment..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:6px 8px;border-radius:5px;font-size:0.82rem;resize:none;font-family:inherit;margin-bottom:6px;"></textarea>';
+          html += '<button onclick="submitFeedback(' + o.order_id + ')" style="background:#7c6af7;color:#fff;border:none;padding:5px 14px;border-radius:5px;cursor:pointer;font-size:0.8rem;">Submit Review</button>';
+          html += '<span id="fbmsg-' + o.order_id + '" style="font-size:0.78rem;margin-left:8px;color:#555;"></span>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+    } catch(e) {}
+
     // Recent ledger entries
     if (ledger && ledger.length) {
       html += '<div class="section-title" style="margin-top:24px">Token Activity (personal ledger)</div>';
@@ -839,6 +873,7 @@ services.forEach(function(s) {
         '<div class="svc-meta">by @' + esc(s.provider) + ' · service #' + s.id + '</div>' +
         '<div class="svc-desc">' + esc(s.description) + '</div>' +
         (s.delivery_notes ? '<div class="svc-delivery">📦 ' + esc(s.delivery_notes) + '</div>' : '') +
+        '<div id="svc-rating-' + s.id + '" style="font-size:0.75rem;color:#555;margin-bottom:8px;">loading rating...</div>' +
         (!isMine && ME ? '<button onclick="toggleOrderForm(' + s.id + ')" style="background:#2a2a2a;color:#ccc;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;">Order</button>' : '') +
         (isMine ? '<button onclick="removeService(' + s.id + ')" style="background:none;border:1px solid #333;color:#555;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;">Remove Listing</button>' : '') +
         '<div class="order-form" id="order-form-' + s.id + '">' +
@@ -851,6 +886,18 @@ services.forEach(function(s) {
           '</div>' +
         '</div>';
       el.appendChild(card);
+      // Load provider rating
+      (function(svcId, provHandle) {
+        fetch('/services/feedback/' + provHandle).then(function(r){return r.json();}).then(function(fb){
+          var el2 = document.getElementById('svc-rating-' + svcId);
+          if (!el2) return;
+          if (fb.total_reviews === 0) { el2.textContent = 'No reviews yet'; }
+          else {
+            var stars = '⭐'.repeat(Math.round(fb.avg_rating));
+            el2.innerHTML = '<span style="color:#f5a623;">' + stars + '</span> ' + fb.avg_rating + '/5 · ' + fb.total_reviews + ' review' + (fb.total_reviews !== 1 ? 's' : '');
+          }
+        }).catch(function(){ var el2 = document.getElementById('svc-rating-' + svcId); if(el2) el2.textContent=''; });
+      })(s.id, s.provider);
     });
   } catch(e) { if(el) el.innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>'; }
 }
@@ -1307,6 +1354,33 @@ function updateFeePreview() {
   } else if (el) {
     el.textContent = '';
   }
+}
+
+// SERVICE FEEDBACK
+var FB_RATINGS = {};
+function showFeedbackForm(orderId, provHandle) {
+  var f = document.getElementById('fb-form-' + orderId);
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+function selectFbStar(orderId, stars) {
+  FB_RATINGS[orderId] = stars;
+  for (var i = 1; i <= 5; i++) {
+    var el = document.getElementById('fbstar-' + orderId + '-' + i);
+    if (el) el.style.color = i <= stars ? '#f5a623' : '#333';
+  }
+}
+async function submitFeedback(orderId) {
+  var rating = FB_RATINGS[orderId];
+  var comment = (document.getElementById('fbcomment-' + orderId)||{}).value || '';
+  var msg = document.getElementById('fbmsg-' + orderId);
+  if (!rating) { if(msg){msg.style.color='#f66';msg.textContent='Select a star rating.';} return; }
+  if(msg){msg.style.color='#888';msg.textContent='Submitting...';}
+  try {
+    var r = await api('/services/orders/' + orderId + '/feedback', 'POST', {rating: rating, comment: comment.trim()||undefined});
+    if(msg){msg.style.color='#4caf50';msg.textContent='✓ Review submitted! ' + r.stars;}
+    var form = document.getElementById('fb-form-' + orderId);
+    if(form) setTimeout(function(){ form.style.display='none'; }, 1500);
+  } catch(e) { if(msg){msg.style.color='#f66';msg.textContent=e.message;} }
 }
 
 function toggleBuyTokens() {

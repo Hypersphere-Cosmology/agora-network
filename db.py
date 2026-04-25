@@ -347,3 +347,19 @@ class PaymentAddress(Base):
     address = Column(String, nullable=False)
     label = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+
+
+class ServiceFeedback(Base):
+    __tablename__ = "service_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(Integer, ForeignKey("service_orders.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reviewee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)   # 'buyer' or 'provider'
+    rating = Column(Integer, nullable=False)  # 1-5
+    comment = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
+    reviewee = relationship("User", foreign_keys=[reviewee_id])

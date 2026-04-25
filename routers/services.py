@@ -357,3 +357,144 @@ def _fmt_order(order, buyer_handle, provider_handle, svc_title):
         "delivery_note": order.delivery_note,
         "created_at": order.created_at.isoformat() if order.created_at else None,
     }
+
+
+# ── Feedback ────────────────────────────────────────────────────────────────
+
+class FeedbackCreate(BaseModel):
+    rating: int      # 1–5
+    comment: Optional[str] = None
+
+
+@router.post("/orders/{order_id}/feedback", status_code=201)
+@limiter.limit("30/hour")
+def leave_feedback(
+    request: Request,
+    order_id: int,
+    payload: FeedbackCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Leave feedback after an order is complete or delivered. Both buyer and provider can review."""
+    from db import ServiceFeedback
+    if payload.rating < 1 or payload.rating > 5:
+        raise HTTPException(status_code=422, detail="Rating must be 1–5")
+
+    order = db.query(ServiceOrder).filter(ServiceOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status not in ("complete", "delivered"):
+        raise HTTPException(status_code=409,
+            detail=f"Can only leave feedback on delivered or complete orders (status: {order.status})")
+
+    svc = db.query(Service).filter(Service.id == order.service_id).first()
+    provider = db.query(User).filter(User.id == svc.provider_id).first() if svc else None
+    buyer = db.query(User).filter(User.id == order.buyer_id).first()
+
+    if current_user.id == order.buyer_id:
+        role = "buyer"
+        reviewee = provider
+    elif provider and current_user.id == provider.id:
+        role = "provider"
+        reviewee = buyer
+    else:
+        raise HTTPException(status_code=403, detail="Only buyer or provider can leave feedback")
+
+    if not reviewee:
+        raise HTTPException(status_code=404, detail="Reviewee not found")
+
+    existing = db.query(ServiceFeedback).filter(
+        ServiceFeedback.order_id == order_id,
+        ServiceFeedback.reviewer_id == current_user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="You have already left feedback for this order")
+
+    fb = ServiceFeedback(
+        order_id=order_id,
+        reviewer_id=current_user.id,
+        reviewee_id=reviewee.id,
+        role=role,
+        rating=payload.rating,
+        comment=payload.comment,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+
+    notify(db, reviewee.id, "feedback_received",
+           f"@{current_user.handle} left you {'⭐' * payload.rating} feedback on order #{order_id}"
+           + (f': "{payload.comment}"' if payload.comment else ""))
+    db.commit()
+
+    return {
+        "feedback_id": fb.id,
+        "order_id": order_id,
+        "reviewer": current_user.handle,
+        "reviewee": reviewee.handle,
+        "rating": payload.rating,
+        "stars": "⭐" * payload.rating,
+        "comment": payload.comment,
+    }
+
+
+@router.get("/feedback/{handle}")
+def get_feedback(handle: str, db: Session = Depends(get_db)):
+    """Get all feedback received by a user — public."""
+    from db import ServiceFeedback
+    user = db.query(User).filter(User.handle == handle).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    feedbacks = db.query(ServiceFeedback).filter(
+        ServiceFeedback.reviewee_id == user.id
+    ).order_by(ServiceFeedback.created_at.desc()).all()
+
+    if not feedbacks:
+        return {"handle": handle, "avg_rating": None, "total_reviews": 0, "reviews": []}
+
+    avg = round(sum(f.rating for f in feedbacks) / len(feedbacks), 2)
+    return {
+        "handle": handle,
+        "avg_rating": avg,
+        "total_reviews": len(feedbacks),
+        "stars": "⭐" * round(avg),
+        "reviews": [
+            {
+                "order_id": f.order_id,
+                "from": f.reviewer.handle if f.reviewer else "?",
+                "role": f.role,
+                "rating": f.rating,
+                "stars": "⭐" * f.rating,
+                "comment": f.comment,
+                "date": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in feedbacks
+        ]
+    }
+
+
+@router.get("/feedback/summary/{handle}")
+def feedback_summary(handle: str, db: Session = Depends(get_db)):
+    """Quick reputation summary for a user."""
+    from db import ServiceFeedback
+    from sqlalchemy import func
+    user = db.query(User).filter(User.handle == handle).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    result = db.query(
+        func.count(ServiceFeedback.id).label("count"),
+        func.avg(ServiceFeedback.rating).label("avg"),
+        func.sum(func.cast(ServiceFeedback.rating == 5, db.bind.dialect.dbapi.INTEGER if hasattr(db, 'bind') else type(1))).label("five_star"),
+    ).filter(ServiceFeedback.reviewee_id == user.id).first()
+
+    count = result.count or 0
+    avg = round(float(result.avg), 2) if result.avg else None
+    return {
+        "handle": handle,
+        "total_score": user.total_score,
+        "service_reviews": count,
+        "avg_service_rating": avg,
+        "reputation": "new" if count == 0 else ("trusted" if avg >= 4.0 else ("mixed" if avg >= 3.0 else "poor")),
+    }
