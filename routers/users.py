@@ -65,6 +65,14 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
     raw_key = generate_api_key()
     store_api_key(db, user.id, raw_key)
 
+    # Recalculate all asset mints — new user increases eligible_raters denominator
+    # so all existing participation rates drop; this re-floors and re-mints correctly
+    from db import Asset as AssetModel
+    from engine.scoring import recalculate_asset_mint, recalculate_all_user_scores
+    for asset in db.query(AssetModel).filter(AssetModel.is_deleted == False, AssetModel.rating_count > 0).all():
+        recalculate_asset_mint(db, asset.id, defer_user_scores=True)
+    recalculate_all_user_scores(db)
+
     return UserRegisterOut(
         user=UserOut.model_validate(user),
         api_key=raw_key,

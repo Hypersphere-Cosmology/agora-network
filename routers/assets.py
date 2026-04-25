@@ -106,8 +106,36 @@ def submit_asset(
 
 
 @router.get("/", response_model=list[AssetOut])
-def list_assets(db: Session = Depends(get_db)):
-    return db.query(Asset).filter(Asset.is_deleted == False).all()
+def list_assets(
+    sort: str = "new",           # new | top | unrated
+    q: str = None,               # search query (title + description)
+    asset_type: str = None,      # filter by type
+    submitter: str = None,       # filter by handle
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    """List assets with optional sort, search, and filter."""
+    query = db.query(Asset).filter(Asset.is_deleted == False)
+
+    if q:
+        query = query.filter(
+            (Asset.title.ilike(f"%{q}%")) | (Asset.description.ilike(f"%{q}%"))
+        )
+    if asset_type:
+        query = query.filter(Asset.asset_type == asset_type)
+    if submitter:
+        user = db.query(User).filter(User.handle == submitter).first()
+        if user:
+            query = query.filter(Asset.submitter_id == user.id)
+
+    if sort == "top":
+        query = query.order_by(Asset.avg_rating.desc().nullslast(), Asset.rating_count.desc())
+    elif sort == "unrated":
+        query = query.filter(Asset.rating_count == 0).order_by(Asset.id.desc())
+    else:  # new
+        query = query.order_by(Asset.id.desc())
+
+    return query.limit(limit).all()
 
 
 @router.get("/{asset_id}", response_model=AssetOut)

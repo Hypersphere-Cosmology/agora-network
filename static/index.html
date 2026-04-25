@@ -269,6 +269,22 @@
 
   <!-- ASSETS PANE -->
   <div id="pane-assets" class="pane active">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+      <input type="text" id="asset-search" placeholder="Search assets..." oninput="debounceAssets()" style="flex:1;min-width:160px;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;padding:7px 12px;border-radius:6px;font-size:0.84rem;">
+      <select id="asset-sort" onchange="loadAssets()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:7px 10px;border-radius:6px;font-size:0.8rem;cursor:pointer;">
+        <option value="new">Newest</option>
+        <option value="top">Top rated</option>
+        <option value="unrated">Unrated</option>
+      </select>
+      <select id="asset-type-filter" onchange="loadAssets()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:7px 10px;border-radius:6px;font-size:0.8rem;cursor:pointer;">
+        <option value="">All types</option>
+        <option value="concept">concept</option>
+        <option value="code">code</option>
+        <option value="data">data</option>
+        <option value="art">art</option>
+        <option value="other">other</option>
+      </select>
+    </div>
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
   </div>
 
@@ -730,9 +746,21 @@ async function loadStatus() {
   } catch(e) {}
 }
 
+var _assetSearchTimer = null;
+function debounceAssets() {
+  clearTimeout(_assetSearchTimer);
+  _assetSearchTimer = setTimeout(loadAssets, 300);
+}
+
 async function loadAssets() {
   try {
-    const all = await fetch('/assets/').then(function(r){return r.json();});
+    var sort = (document.getElementById('asset-sort')||{}).value || 'new';
+    var q = (document.getElementById('asset-search')||{}).value || '';
+    var typeFilter = (document.getElementById('asset-type-filter')||{}).value || '';
+    var url = '/assets/?sort=' + sort;
+    if (q) url += '&q=' + encodeURIComponent(q);
+    if (typeFilter) url += '&asset_type=' + encodeURIComponent(typeFilter);
+    const all = await fetch(url).then(function(r){return r.json();});
     ASSETS = all.filter(function(a){return !a.is_deleted;});
     const list = document.getElementById('asset-list');
     if (!ASSETS.length) { list.innerHTML = '<div id="empty-msg">No assets yet.</div>'; return; }
