@@ -13,8 +13,9 @@ from auth import get_current_user
 from notifications import notify
 from ratelimit import limiter
 from engine.scoring import recalculate_all_user_scores
+import config as _config
 
-TRADE_FEE_RATE = 0.01
+TRADE_FEE_RATE = _config.TRADE_FEE_RATE  # live — updated by governance
 
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
@@ -74,7 +75,7 @@ def transfer_tokens(
     if recipient.id == current_user.id:
         raise HTTPException(status_code=403, detail="Cannot transfer to yourself")
 
-    fee = round(payload.amount * TRADE_FEE_RATE, 6)
+    fee = round(payload.amount * _config.get_fee_rate(), 6)
     total_cost = round(payload.amount + fee, 6)   # sender pays amount + fee
 
     if current_user.token_balance < total_cost:
@@ -297,7 +298,7 @@ def cancel_bounty(
 
 def _execute_bounty(listing, poster, claimant, db, bounty_id):
     """Internal: transfer escrow to claimant, close listing."""
-    fee = round(listing.price * TRADE_FEE_RATE, 6)
+    fee = round(listing.price * _config.get_fee_rate(), 6)
     net = round(listing.price - fee, 6)
 
     claimant.token_balance = round(claimant.token_balance + net, 6)

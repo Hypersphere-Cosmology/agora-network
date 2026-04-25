@@ -9,12 +9,13 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from db import get_db, User, Proposal, ProposalOption, Vote, Asset
+import config as _config
 from auth import get_current_user
 from notifications import notify
 from engine.scoring import recalculate_asset_mint
 
-MIN_SCORE_TO_VOTE = 20.0
-QUORUM_OVERRIDE = 1.0  # 100% until founders manually lower it via governance
+MIN_SCORE_TO_VOTE = 10.0   # lowered from 20 — network too new for 20 threshold
+QUORUM_OVERRIDE = 1.0     # 100% until founders lower it via governance
 
 FOUNDER_HANDLES = {"sean", "ava"}  # veto control
 
@@ -201,8 +202,26 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
     proposal.is_closed = True
     proposal.closed_at = datetime.now(timezone.utc)
     db.commit()
+
+    # Auto-execute known proposal types based on title keywords
+    _auto_execute(proposal, winning.label)
+
     db.refresh(proposal)
     return proposal
+
+
+def _auto_execute(proposal: "Proposal", winning_label: str):
+    """Auto-apply the result of known governance proposals."""
+    title_lower = proposal.title.lower()
+
+    # Fee rate proposals: title contains "fee" and winning label is a percentage
+    if "fee" in title_lower:
+        import re
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_rate = float(match.group(1)) / 100.0
+            _config.set_fee_rate(new_rate)
+            print(f"[governance] Fee rate updated to {new_rate*100:.2f}% by proposal #{proposal.id}")
 
 
 @router.post("/quorum")
@@ -216,3 +235,16 @@ def set_quorum(new_quorum: float, db: Session = Depends(get_db),
         raise HTTPException(status_code=422, detail="Quorum must be between 0.01 and 1.0")
     QUORUM_OVERRIDE = new_quorum
     return {"ok": True, "quorum": QUORUM_OVERRIDE, "set_by": current_user.handle}
+
+
+@router.post("/min-score")
+def set_min_score(min_score: float, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    """Founders only — adjust minimum score required to vote/propose."""
+    global MIN_SCORE_TO_VOTE
+    if current_user.handle not in FOUNDER_HANDLES:
+        raise HTTPException(status_code=403, detail="Founders only")
+    if min_score < 0:
+        raise HTTPException(status_code=422, detail="Min score cannot be negative")
+    MIN_SCORE_TO_VOTE = min_score
+    return {"ok": True, "min_score_to_vote": MIN_SCORE_TO_VOTE, "set_by": current_user.handle}
