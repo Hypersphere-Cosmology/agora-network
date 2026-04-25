@@ -70,6 +70,10 @@ def governance_portal():
 def faq():
     return FileResponse("static/faq.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+@app.get("/bank-portal", include_in_schema=False)
+def bank_portal():
+    return FileResponse("static/bank.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 
 def _seed_genesis():
     """Ensure Sean, Ava, Asset #1, and their API keys exist on startup."""
