@@ -72,6 +72,29 @@
     #reg-msg { font-size: 0.8rem; color: #aaa; margin-top: 10px; font-family: monospace; word-break: break-all; }
     #empty-msg { text-align: center; color: #444; padding: 48px; font-size: 0.9rem; }
     .trade-msg { font-size: 0.83rem; margin-top: 6px; }
+    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 600px) { .profile-grid { grid-template-columns: 1fr; } }
+    .stat-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; }
+    .stat-card .label { font-size: 0.72rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 1.8rem; font-weight: 700; color: #fff; }
+    .stat-card .value.tokens { color: #4caf50; }
+    .stat-card .value.score { color: #7c6af7; }
+    .stat-card .sub { font-size: 0.78rem; color: #555; margin-top: 6px; }
+    .score-breakdown { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+    .score-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #222; }
+    .score-row:last-child { border-bottom: none; }
+    .score-row .sname { font-size: 0.85rem; color: #aaa; }
+    .score-row .sval { font-size: 0.85rem; color: #7c6af7; font-weight: 600; }
+    .score-row .sraw { font-size: 0.75rem; color: #444; margin-left: 8px; }
+    .my-asset-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+    .my-asset-card h4 { font-size: 0.95rem; color: #fff; margin-bottom: 6px; }
+    .my-asset-card .ma-meta { display: flex; gap: 16px; font-size: 0.8rem; color: #666; flex-wrap: wrap; }
+    .my-asset-card .ma-tokens { color: #4caf50; font-weight: 600; }
+    .my-asset-card .ma-avg { color: #7c6af7; font-weight: 600; }
+    .my-rating-row { padding: 10px 0; border-bottom: 1px solid #1e1e1e; display: flex; justify-content: space-between; align-items: center; }
+    .my-rating-row:last-child { border-bottom: none; }
+    .my-rating-row .rtitle { font-size: 0.85rem; color: #ccc; flex: 1; }
+    .my-rating-row .rscore { font-size: 0.85rem; font-weight: 700; color: #7c6af7; white-space: nowrap; margin-left: 12px; }
   </style>
 </head>
 <body>
@@ -103,11 +126,17 @@
   <div class="tabs">
     <div class="tab active" onclick="showTab('assets')">Assets</div>
     <div class="tab" onclick="showTab('market')">Marketplace</div>
+    <div class="tab" onclick="showTab('profile')">Profile</div>
   </div>
 
   <!-- ASSETS PANE -->
   <div id="pane-assets" class="pane active">
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
+  </div>
+
+  <!-- PROFILE PANE -->
+  <div id="pane-profile" class="pane">
+    <div id="profile-content"><div style="color:#444;padding:32px;text-align:center">Connect with your API key to view your profile.</div></div>
   </div>
 
   <!-- MARKETPLACE PANE -->
@@ -152,10 +181,89 @@ let SCORE = null;
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); }
 
 function showTab(name) {
-  document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', i === (name==='assets'?0:1)); });
+  var tabs = ['assets','market','profile'];
+  document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
   document.getElementById('pane-assets').classList.toggle('active', name==='assets');
   document.getElementById('pane-market').classList.toggle('active', name==='market');
+  document.getElementById('pane-profile').classList.toggle('active', name==='profile');
   if (name === 'market') loadListings();
+  if (name === 'profile') loadProfile();
+}
+
+async function loadProfile() {
+  const el = document.getElementById('profile-content');
+  if (!ME) { el.innerHTML = '<div style="color:#444;padding:32px;text-align:center">Connect with your API key to view your profile.</div>'; return; }
+
+  el.innerHTML = '<div style="color:#555;padding:16px">Loading...</div>';
+
+  try {
+    // Fetch all assets to find mine and ratings
+    const allAssets = await fetch('/assets/').then(function(r){return r.json();});
+    const myAssets = allAssets.filter(function(a){ return a.submitter_id === ME.id && !a.is_deleted; });
+
+    // Fetch my ratings from bank ledger
+    const ledger = await api('/bank/ledger').catch(function(){ return []; });
+    const balance = await api('/bank/balance').catch(function(){ return {balance: ME.token_balance}; });
+
+    // Score breakdown
+    var html = '';
+
+    // Top stats grid
+    html += '<div class="profile-grid">';
+    html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">earned from asset ratings</div></div>';
+    html += '<div class="stat-card"><div class="label">Total Score</div><div class="value score">' + ME.total_score.toFixed(2) + '</div><div class="sub">percentile-normalized</div></div>';
+    html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
+    var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
+    html += '<div class="stat-card"><div class="label">Tokens Minted (your assets)</div><div class="value tokens">' + totalMinted.toFixed(4) + ' A</div><div class="sub">across all your submissions</div></div>';
+    html += '</div>';
+
+    // Score breakdown
+    html += '<div class="score-breakdown">';
+    html += '<div class="section-title">Score Breakdown</div>';
+    html += '<div class="score-row"><span class="sname">Submission Score</span><span><span class="sval">' + ME.submission_score.toFixed(4) + '</span><span class="sraw">raw: ' + Number(ME.submission_raw).toFixed(4) + '</span></span></div>';
+    html += '<div class="score-row"><span class="sname">Rater Score</span><span><span class="sval">' + ME.rater_score.toFixed(4) + '</span><span class="sraw">ratings given: ' + ME.rater_raw + '</span></span></div>';
+    html += '<div class="score-row"><span class="sname">Trade Score</span><span><span class="sval">' + ME.trade_score.toFixed(4) + '</span><span class="sraw">raw: ' + Number(ME.trade_raw).toFixed(4) + '</span></span></div>';
+    html += '</div>';
+
+    // My assets
+    if (myAssets.length) {
+      html += '<div class="section-title">Your Assets</div>';
+      myAssets.forEach(function(a) {
+        var rated = a.rating_count > 0;
+        html += '<div class="my-asset-card" onclick="openAsset(' + a.id + ')" style="cursor:pointer">';
+        html += '<h4>#' + a.id + ' — ' + esc(a.title) + (a.is_genesis ? ' <span class="badge genesis">genesis</span>' : '') + '</h4>';
+        html += '<div class="ma-meta">';
+        html += '<span class="ma-avg">' + (rated ? '&#9733; ' + a.avg_rating : 'no ratings yet') + '</span>';
+        html += '<span>' + a.rating_count + ' rating' + (a.rating_count !== 1 ? 's' : '') + '</span>';
+        html += '<span class="ma-tokens">' + Number(a.tokens_minted).toFixed(4) + ' A minted</span>';
+        html += '<span style="color:#444">' + esc(a.asset_type) + '</span>';
+        html += '</div></div>';
+      });
+    } else {
+      html += '<div style="color:#444;padding:16px 0">No assets submitted yet. Submit via the proxy endpoint or the API.</div>';
+    }
+
+    // Recent ledger entries
+    if (ledger && ledger.length) {
+      html += '<div class="section-title" style="margin-top:24px">Recent Token Activity</div>';
+      html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:16px">';
+      ledger.slice(0, 15).forEach(function(entry) {
+        var sign = entry.amount >= 0 ? '+' : '';
+        var color = entry.amount >= 0 ? '#4caf50' : '#f66';
+        var label = esc(entry.note || entry.event_type || 'transaction');
+        html += '<div class="my-rating-row">';
+        html += '<span class="rtitle">' + label + '</span>';
+        html += '<span class="rscore" style="color:' + color + '">' + sign + Number(entry.amount).toFixed(4) + ' A</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="color:#f66;padding:16px">Error loading profile: ' + esc(e.message) + '</div>';
+    console.error('loadProfile', e);
+  }
 }
 
 function connect() {
