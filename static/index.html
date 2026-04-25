@@ -198,7 +198,8 @@
     <span>Users: <strong id="s-users">&#8212;</strong></span>
     <span>Assets: <strong id="s-assets">&#8212;</strong></span>
     <span>Trades: <strong id="s-trades">&#8212;</strong></span>
-    <span>Bank: <strong id="s-bank">&#8212;</strong> A <span style="color:#444;font-size:0.75rem">(grows as network scales)</span></span>
+    <span>Bank: <strong id="s-bank">&#8212;</strong> A</span>
+    <span style="border-left:1px solid #222;padding-left:16px;">1 A = <strong id="s-rate" style="color:#4caf50">&#8212;</strong> USD <span id="s-rate-note" style="color:#444;font-size:0.72rem"></span></span>
   </div>
 
   <div id="register-box" style="display:none">
@@ -447,7 +448,7 @@ async function loadUsers() {
       // Stats
       html += '<div style="text-align:right;flex-shrink:0;">';
       html += '<div style="font-size:0.92rem;font-weight:700;color:#7c6af7;">' + Number(u.total_score).toFixed(1) + ' pts</div>';
-      html += '<div style="font-size:0.75rem;color:#4caf50;">' + Number(u.token_balance).toFixed(2) + ' A</div>';
+      html += '<div style="font-size:0.75rem;color:#4caf50;">' + Number(u.token_balance).toFixed(2) + ' A <span style="color:#3a8a3a">≈$' + (Number(u.token_balance) * USD_PER_TOKEN).toFixed(2) + '</span></div>';
       html += '</div>';
       // Send button (not to self)
       if (ME && !isMe) {
@@ -490,7 +491,7 @@ async function loadProfile() {
 
     // Top stats grid
     html += '<div class="profile-grid">';
-    html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">earned from asset ratings</div></div>';
+    html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">≈$' + (Number(ME.token_balance) * USD_PER_TOKEN).toFixed(2) + ' USD · earned from asset ratings</div></div>';
     html += '<div class="stat-card"><div class="label">Total Score</div><div class="value score">' + ME.total_score.toFixed(2) + '</div><div class="sub">percentile-normalized</div></div>';
     html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
     var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
@@ -581,10 +582,12 @@ async function boot() {
   await loadStatus();
   try {
     ME = await api('/users/me');
+    var usdVal = (ME.token_balance * USD_PER_TOKEN).toFixed(2);
     document.getElementById('user-info').innerHTML =
       '<strong>' + ME.handle + '</strong> &nbsp;' +
       ME.total_score.toFixed(1) + ' pts &nbsp;' +
-      ME.token_balance.toFixed(4) + ' A';
+      ME.token_balance.toFixed(4) + ' A' +
+      ' <span style="color:#4caf50;font-size:0.78rem">(≈$' + usdVal + ')</span>';
     document.getElementById('register-box').style.display = 'none';
     document.getElementById('submit-asset-btn').style.display = 'inline-block';
     document.getElementById('market-btns').style.display = 'flex';
@@ -596,6 +599,8 @@ async function boot() {
   }
 }
 
+var USD_PER_TOKEN = 0.50;
+
 async function loadStatus() {
   try {
     const s = await fetch('/status').then(function(r){return r.json();});
@@ -603,6 +608,11 @@ async function loadStatus() {
     document.getElementById('s-assets').textContent = s.assets;
     document.getElementById('s-trades').textContent = s.trades;
     document.getElementById('s-bank').textContent = Number(s.bank_balance).toFixed(2);
+    if (s.usd_per_token) {
+      USD_PER_TOKEN = s.usd_per_token;
+      document.getElementById('s-rate').textContent = '$' + Number(s.usd_per_token).toFixed(2);
+      document.getElementById('s-rate-note').textContent = '(reference rate · governance-adjustable)';
+    }
   } catch(e) {}
 }
 

@@ -150,16 +150,21 @@ def root():
 
 @app.get("/status")
 def status(db: Session = Depends(get_db)):
-    from db import Asset, Trade, BankLedger
+    from db import Asset, Trade, BankLedger, StorageConfig
     users_count = db.query(User).count()
     assets_count = db.query(Asset).filter(Asset.is_deleted == False).count()
     trades_count = db.query(Trade).count()
     bank_balance = sum(e.amount for e in db.query(BankLedger).all())
+    # Reference exchange rate (founder-declared, governance-adjustable)
+    rate_row = db.query(StorageConfig).filter(StorageConfig.key == "usd_per_token").first()
+    usd_per_token = float(rate_row.value_text) if rate_row and rate_row.value_text else 0.50
     return {
         "users": users_count,
         "assets": assets_count,
         "trades": trades_count,
         "bank_balance": round(bank_balance, 6),
+        "usd_per_token": usd_per_token,
+        "rate_note": "Reference rate. Governance-adjustable by vote.",
     }
 
 
