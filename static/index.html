@@ -1160,8 +1160,8 @@ async function loadAssetFiles(assetId) {
 
     if (isOwn) {
       html += '<div style="margin-top:10px;">';
-      html += '<label style="font-size:0.75rem;color:#555;display:block;margin-bottom:5px;">Attach a file (PDF, images, text, audio, zip — max 50MB)</label>';
-      html += '<input type="file" id="file-upload-' + assetId + '" accept=".pdf,.md,.txt,.json,.csv,.png,.jpg,.jpeg,.gif,.mp3,.wav,.zip" style="font-size:0.8rem;color:#888;">';
+      html += '<label style="font-size:0.75rem;color:#555;display:block;margin-bottom:5px;">Attach a file (PDF, Word, images, text, audio, zip — max 50MB)</label>';
+      html += '<input type="file" id="file-upload-' + assetId + '" accept=".pdf,.md,.txt,.json,.csv,.png,.jpg,.jpeg,.gif,.mp3,.wav,.zip,.doc,.docx,.odt,.rtf" style="font-size:0.8rem;color:#888;">';
       html += '<button onclick="uploadFile(' + assetId + ')" style="margin-left:8px;background:#7c6af7;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem;">Upload</button>';
       html += '<span id="upload-msg-' + assetId + '" style="font-size:0.78rem;margin-left:8px;"></span>';
       html += '</div>';
