@@ -46,15 +46,16 @@ class ProposalOut(BaseModel):
 class OptionOut(BaseModel):
     id: int
     label: str
-    vote_count: int
+    vote_count: int     # distinct voters who ranked this option
+    borda_points: int   # total Borda score (higher = more preferred)
 
     class Config:
         from_attributes = True
 
 
-class VoteSubmit(BaseModel):
+class RankedVoteSubmit(BaseModel):
     voter_handle: str
-    option_id: int
+    rankings: list[int]   # list of option_ids in preference order: [top_choice_id, second_id, ...]
 
 
 @router.post("/proposals", response_model=ProposalOut, status_code=201)
@@ -96,13 +97,16 @@ def list_proposals(db: Session = Depends(get_db)):
 
 
 @router.get("/proposals/{proposal_id}/votes")
-def get_my_vote(proposal_id: int, voter: str, db: Session = Depends(get_db)):
-    """Get a specific user's vote on a proposal (for UI highlighting)."""
+def get_my_votes(proposal_id: int, voter: str, db: Session = Depends(get_db)):
+    """Get a voter's full ranked ballot for a proposal."""
     user = db.query(User).filter(User.handle == voter).first()
     if not user:
-        return {"option_id": None}
-    vote = db.query(Vote).filter(Vote.user_id == user.id, Vote.proposal_id == proposal_id).first()
-    return {"option_id": vote.option_id if vote else None}
+        return {"rankings": []}
+    votes = db.query(Vote).filter(
+        Vote.user_id == user.id,
+        Vote.proposal_id == proposal_id
+    ).order_by(Vote.rank.asc()).all()
+    return {"rankings": [{"option_id": v.option_id, "rank": v.rank} for v in votes]}
 
 
 @router.get("/proposals/{proposal_id}/options", response_model=list[OptionOut])
@@ -114,7 +118,13 @@ def get_options(proposal_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/proposals/{proposal_id}/vote", response_model=dict)
-def cast_vote(proposal_id: int, payload: VoteSubmit, db: Session = Depends(get_db)):
+def cast_ranked_vote(proposal_id: int, payload: RankedVoteSubmit, db: Session = Depends(get_db)):
+    """
+    Submit a full ranked ballot (Borda count).
+    rankings = [top_choice_option_id, second_choice_id, ...]
+    Must rank ALL options. Points assigned: N-1 for 1st, N-2 for 2nd, ... 0 for last.
+    Can re-vote — old ballot is replaced.
+    """
     proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
@@ -124,50 +134,64 @@ def cast_vote(proposal_id: int, payload: VoteSubmit, db: Session = Depends(get_d
     voter = db.query(User).filter(User.handle == payload.voter_handle).first()
     if not voter:
         raise HTTPException(status_code=404, detail="Voter not found")
-
     if voter.total_score < MIN_SCORE_TO_VOTE:
-        raise HTTPException(
-            status_code=403,
-            detail=f"Total score must be >= {MIN_SCORE_TO_VOTE} to vote"
+        raise HTTPException(status_code=403, detail=f"Score ≥ {MIN_SCORE_TO_VOTE} required to vote")
+
+    options = db.query(ProposalOption).filter(ProposalOption.proposal_id == proposal_id).all()
+    option_ids = {o.id for o in options}
+    n = len(options)
+
+    if len(payload.rankings) != n:
+        raise HTTPException(status_code=422,
+            detail=f"Must rank all {n} options. Got {len(payload.rankings)}.")
+    if set(payload.rankings) != option_ids:
+        raise HTTPException(status_code=422,
+            detail="rankings must contain each option ID exactly once.")
+
+    # Remove old ballot for this voter on this proposal
+    old_votes = db.query(Vote).filter(Vote.user_id == voter.id, Vote.proposal_id == proposal_id).all()
+    if old_votes:
+        # Subtract old Borda points
+        for v in old_votes:
+            opt = db.query(ProposalOption).filter(ProposalOption.id == v.option_id).first()
+            if opt:
+                opt.borda_points = max(0, opt.borda_points - (n - v.rank))
+                opt.vote_count = max(0, opt.vote_count - 1)
+        db.query(Vote).filter(Vote.user_id == voter.id, Vote.proposal_id == proposal_id).delete()
+        db.flush()
+
+    # Add new ballot
+    for rank_pos, option_id in enumerate(payload.rankings, start=1):
+        borda_pts = n - rank_pos   # 1st gets N-1 pts, last gets 0
+        vote = Vote(
+            user_id=voter.id,
+            proposal_id=proposal_id,
+            option_id=option_id,
+            rank=rank_pos,
         )
-
-    option = db.query(ProposalOption).filter(
-        ProposalOption.id == payload.option_id,
-        ProposalOption.proposal_id == proposal_id
-    ).first()
-    if not option:
-        raise HTTPException(status_code=404, detail="Option not found on this proposal")
-
-    existing = db.query(Vote).filter(
-        Vote.user_id == voter.id,
-        Vote.proposal_id == proposal_id
-    ).first()
-    if existing:
-        # Change vote: decrement old option
-        old_option = db.query(ProposalOption).filter(ProposalOption.id == existing.option_id).first()
-        if old_option:
-            old_option.vote_count = max(0, old_option.vote_count - 1)
-        existing.option_id = payload.option_id
-        existing.voted_at = datetime.now(timezone.utc)
-    else:
-        vote = Vote(user_id=voter.id, proposal_id=proposal_id, option_id=payload.option_id)
         db.add(vote)
+        opt = db.query(ProposalOption).filter(ProposalOption.id == option_id).first()
+        if opt:
+            opt.borda_points += borda_pts
+            opt.vote_count += 1
 
-    option.vote_count += 1
     db.commit()
 
-    # Check quorum
+    # Count distinct voters (not rows)
+    from sqlalchemy import func, distinct
+    distinct_voters = db.query(func.count(distinct(Vote.user_id))).filter(
+        Vote.proposal_id == proposal_id).scalar()
     eligible_voters = db.query(User).filter(User.total_score >= MIN_SCORE_TO_VOTE).count()
-    total_votes = db.query(Vote).filter(Vote.proposal_id == proposal_id).count()
-
-    quorum_met = eligible_voters > 0 and (total_votes / eligible_voters) >= proposal.quorum
+    quorum_met = eligible_voters > 0 and (distinct_voters / eligible_voters) >= proposal.quorum
 
     return {
         "ok": True,
-        "total_votes": total_votes,
+        "voters": distinct_voters,
         "eligible_voters": eligible_voters,
         "quorum_met": quorum_met,
         "quorum_required": proposal.quorum,
+        "borda_scores": {o.label: o.borda_points for o in
+                         db.query(ProposalOption).filter(ProposalOption.proposal_id == proposal_id).all()},
     }
 
 
@@ -186,18 +210,20 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
     if closer.total_score < MIN_SCORE_TO_VOTE:
         raise HTTPException(status_code=403, detail="Insufficient score to close proposal")
 
-    # Check quorum
+    # Check quorum (count distinct voters)
+    from sqlalchemy import func, distinct
     eligible_voters = db.query(User).filter(User.total_score >= MIN_SCORE_TO_VOTE).count()
-    total_votes = db.query(Vote).filter(Vote.proposal_id == proposal_id).count()
+    distinct_voters = db.query(func.count(distinct(Vote.user_id))).filter(
+        Vote.proposal_id == proposal_id).scalar()
 
-    if eligible_voters > 0 and (total_votes / eligible_voters) < proposal.quorum:
+    if eligible_voters > 0 and (distinct_voters / eligible_voters) < proposal.quorum:
         raise HTTPException(
             status_code=409,
-            detail=f"Quorum not met ({total_votes}/{eligible_voters} votes, need {proposal.quorum*100:.0f}%)"
+            detail=f"Quorum not met ({distinct_voters}/{eligible_voters} voters, need {proposal.quorum*100:.0f}%)"
         )
 
-    # Plurality: highest vote count wins
-    winning = max(proposal.options, key=lambda o: o.vote_count)
+    # Borda count: highest borda_points wins
+    winning = max(proposal.options, key=lambda o: o.borda_points)
     proposal.winning_option = winning.label
     proposal.is_closed = True
     proposal.closed_at = datetime.now(timezone.utc)

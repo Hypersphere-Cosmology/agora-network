@@ -172,19 +172,25 @@ class ProposalOption(Base):
     id = Column(Integer, primary_key=True, index=True)
     proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False)
     label = Column(String, nullable=False)
-    vote_count = Column(Integer, default=0)
+    vote_count = Column(Integer, default=0)   # number of voters who ranked this option
+    borda_points = Column(Integer, default=0)  # total Borda points (higher = preferred)
 
     proposal = relationship("Proposal", back_populates="options")
 
 
 class Vote(Base):
+    """One row per voter per option, with rank (1=top choice)."""
     __tablename__ = "votes"
-    __table_args__ = (UniqueConstraint("user_id", "proposal_id", name="uq_user_proposal_vote"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "proposal_id", "option_id", name="uq_voter_option"),
+        UniqueConstraint("user_id", "proposal_id", "rank", name="uq_voter_rank"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False)
     option_id = Column(Integer, ForeignKey("proposal_options.id"), nullable=False)
+    rank = Column(Integer, nullable=False)   # 1 = top choice, 2 = second, etc.
     voted_at = Column(DateTime, default=utcnow)
 
 

@@ -82,18 +82,22 @@
     .q-fill { height:100%; border-radius:3px; background:#7c6af7; transition:width 0.3s; }
     .q-fill.q-met { background:#4caf50; }
     .q-label { font-size:0.72rem; color:#555; white-space:nowrap; }
-    .vote-option { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:7px; border:1px solid #222; margin-bottom:6px; cursor:pointer; transition:border-color 0.12s, background 0.12s; }
-    .vote-option:hover { border-color:#7c6af7; background:#13102a; }
-    .vote-option.my-pick { border-color:#7c6af7; background:#13102a; }
+    .vote-option { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:7px; border:1px solid #222; margin-bottom:6px; transition:border-color 0.12s, background 0.12s; }
+    .vote-option.ranked { border-color:#7c6af7; background:#13102a; cursor:grab; }
+    .vote-option.ranked:active { cursor:grabbing; }
     .vote-option.winning { border-color:#4caf50; background:#0a1a0a; }
     .vote-option.closed-opt { cursor:default; }
-    .vote-option.closed-opt:hover { border-color:#222; background:transparent; }
-    .v-dot { width:8px; height:8px; border-radius:50%; background:#7c6af7; flex-shrink:0; }
+    .v-rank-num { width:22px; height:22px; border-radius:50%; background:#7c6af7; color:#fff; font-size:0.75rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .v-rank-empty { width:22px; height:22px; border-radius:50%; background:#222; color:#555; font-size:0.72rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .v-drag-handle { color:#444; font-size:0.9rem; cursor:grab; flex-shrink:0; }
     .v-label { font-size:0.88rem; color:#ccc; flex:1; }
     .v-bar { width:80px; height:4px; background:#111; border-radius:2px; overflow:hidden; flex-shrink:0; }
     .v-bar-fill { height:100%; border-radius:2px; background:#7c6af7; }
     .v-bar-fill.v-win { background:#4caf50; }
-    .v-count { font-size:0.75rem; color:#555; white-space:nowrap; min-width:52px; text-align:right; }
+    .v-count { font-size:0.75rem; color:#555; white-space:nowrap; min-width:70px; text-align:right; }
+    .rank-instructions { font-size:0.78rem; color:#555; margin-bottom:8px; }
+    .submit-vote-btn { margin-top:10px; background:#7c6af7; color:#fff; border:none; padding:8px 18px; border-radius:6px; cursor:pointer; font-size:0.84rem; }
+    .submit-vote-btn:disabled { background:#333; color:#555; cursor:not-allowed; }
     .v-msg { font-size:0.8rem; margin-top:8px; }
     .close-link { font-size:0.78rem; color:#555; cursor:pointer; text-decoration:underline; margin-top:10px; display:none; }
     .winner-note { background:#0a1a0a; border:1px solid #2a4a2a; border-radius:6px; padding:9px 13px; margin-top:12px; font-size:0.84rem; color:#4caf50; }
@@ -744,22 +748,29 @@ async function loadGov() {
 
 async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
   var options = await fetch('/governance/proposals/' + proposal.id + '/options').then(function(r){return r.json();});
-  var total_votes = options.reduce(function(s,o){ return s + o.vote_count; }, 0);
-  var quorum_needed = Math.ceil(eligible_count * (proposal.quorum || 1.0));
-  var quorum_pct = quorum_needed > 0 ? Math.min(100, Math.round((total_votes / quorum_needed) * 100)) : 100;
-  var quorum_met = total_votes >= quorum_needed;
-  var leading = options.reduce(function(a,b){ return a.vote_count >= b.vote_count ? a : b; }, options[0] || {vote_count:0});
+  var distinct_voters = options.length ? options[0].vote_count : 0;  // approximate — use quorum check
+  var quorum_needed = Math.max(1, Math.ceil(eligible_count * (proposal.quorum || 1.0)));
+  var max_borda = options.reduce(function(m,o){ return Math.max(m, o.borda_points); }, 0);
 
-  // My vote
-  var my_vote = null;
-  if (ME && GOV_MY_VOTES[proposal.id]) {
-    my_vote = GOV_MY_VOTES[proposal.id];
-  } else if (ME) {
+  // Count distinct voters from borda scores
+  var n = options.length;
+  // Each voter contributes exactly sum(0..n-1) = n*(n-1)/2 total Borda points across all options
+  var total_borda = options.reduce(function(s,o){ return s + o.borda_points; }, 0);
+  var voters_who_voted = n > 1 ? Math.round(total_borda / (n*(n-1)/2)) : 0;
+
+  var quorum_pct = quorum_needed > 0 ? Math.min(100, Math.round((voters_who_voted / quorum_needed) * 100)) : 100;
+  var quorum_met = voters_who_voted >= quorum_needed;
+  var leading = options.reduce(function(a,b){ return a.borda_points >= b.borda_points ? a : b; }, options[0] || {borda_points:0});
+
+  // My ballot
+  var my_rankings = {};  // option_id -> rank
+  if (ME) {
     try {
       var vr = await fetch('/governance/proposals/' + proposal.id + '/votes?voter=' + ME.handle).then(function(r){return r.json();});
-      if (vr && vr.option_id) { my_vote = vr.option_id; GOV_MY_VOTES[proposal.id] = my_vote; }
+      (vr.rankings||[]).forEach(function(v){ my_rankings[v.option_id] = v.rank; });
     } catch(e) {}
   }
+  var has_voted = Object.keys(my_rankings).length > 0;
 
   var card = document.createElement('div');
   card.id = 'prop-card-' + proposal.id;
@@ -769,22 +780,49 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
     ? '<span class="prop-badge badge-closed">Closed' + (proposal.winning_option ? ' · ' + esc(proposal.winning_option) + ' won' : '') + '</span>'
     : '<span class="prop-badge badge-open">Open</span>';
 
-  var optHtml = '';
-  options.forEach(function(opt) {
-    var pct = total_votes > 0 ? Math.round((opt.vote_count / total_votes) * 100) : 0;
-    var isLeading = !isClosed && opt.id === (leading||{}).id && opt.vote_count > 0;
+  // Results section (scores)
+  var resultHtml = '';
+  var sortedByBorda = options.slice().sort(function(a,b){ return b.borda_points - a.borda_points; });
+  sortedByBorda.forEach(function(opt) {
+    var pct = max_borda > 0 ? Math.round((opt.borda_points / max_borda) * 100) : 0;
     var isWinner = isClosed && opt.label === proposal.winning_option;
-    var isMyVote = my_vote === opt.id;
-    var cls = 'vote-option' + (isLeading ? ' winning' : '') + (isWinner ? ' winning' : '') + (isMyVote ? ' my-pick' : '') + (isClosed ? ' closed-opt' : '');
-    var clickable = !isClosed && is_eligible ? 'onclick="castGovVote(' + proposal.id + ',' + opt.id + ')"' : '';
-    optHtml +=
-      '<div class="' + cls + '" ' + clickable + '>' +
-      (isMyVote ? '<div class="v-dot" title="Your vote"></div>' : '<div style="width:8px"></div>') +
+    var isLeading = !isClosed && opt.id === (leading||{}).id && opt.borda_points > 0;
+    var cls = 'vote-option closed-opt' + (isWinner || isLeading ? ' winning' : '');
+    resultHtml +=
+      '<div class="' + cls + '">' +
       '<div class="v-label">' + esc(opt.label) + '</div>' +
       '<div class="v-bar"><div class="v-bar-fill' + (isWinner ? ' v-win' : '') + '" style="width:' + pct + '%"></div></div>' +
-      '<div class="v-count">' + opt.vote_count + ' vote' + (opt.vote_count !== 1 ? 's' : '') + ' · ' + pct + '%</div>' +
+      '<div class="v-count">' + opt.borda_points + ' pts · ' + opt.vote_count + ' voter' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
       '</div>';
   });
+
+  // Rank input section (drag or click up/down)
+  var rankHtml = '';
+  if (!isClosed && is_eligible) {
+    rankHtml += '<div class="rank-instructions">Rank all options from most preferred (1) to least preferred (' + n + '). Drag to reorder, or use ↑↓ buttons.</div>';
+    rankHtml += '<div id="rank-list-' + proposal.id + '">';
+    // Start with current ranking if voted, else default order
+    var ordered = options.slice();
+    if (has_voted) {
+      ordered.sort(function(a,b){ return (my_rankings[a.id]||99) - (my_rankings[b.id]||99); });
+    }
+    ordered.forEach(function(opt, idx) {
+      var rank = has_voted ? (my_rankings[opt.id] || idx+1) : idx+1;
+      rankHtml +=
+        '<div class="vote-option ranked" data-opt-id="' + opt.id + '" data-rank="' + rank + '" draggable="true" ' +
+        'ondragstart="govDragStart(event,' + proposal.id + ')" ondragover="govDragOver(event)" ondrop="govDrop(event,' + proposal.id + ')">' +
+        '<span class="v-drag-handle">⠿</span>' +
+        '<div class="v-rank-num">' + rank + '</div>' +
+        '<div class="v-label">' + esc(opt.label) + '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+        '<button onclick="govMoveUp(' + proposal.id + ',this)" style="background:#222;border:none;color:#888;padding:3px 7px;border-radius:4px;cursor:pointer;font-size:0.8rem;">↑</button>' +
+        '<button onclick="govMoveDown(' + proposal.id + ',this)" style="background:#222;border:none;color:#888;padding:3px 7px;border-radius:4px;cursor:pointer;font-size:0.8rem;">↓</button>' +
+        '</div></div>';
+    });
+    rankHtml += '</div>';
+    rankHtml += '<button class="submit-vote-btn" onclick="submitGovRanking(' + proposal.id + ')">' +
+      (has_voted ? 'Update Ranking' : 'Submit Ranking') + '</button>';
+  }
 
   var canClose = !isClosed && quorum_met && ME && ME.total_score >= 10;
 
@@ -793,9 +831,10 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
     (proposal.description ? '<div class="prop-desc">' + esc(proposal.description) + '</div>' : '') +
     '<div class="quorum-track">' +
       '<div class="q-bar"><div class="q-fill' + (quorum_met ? ' q-met' : '') + '" style="width:' + quorum_pct + '%"></div></div>' +
-      '<div class="q-label">' + total_votes + '/' + quorum_needed + ' votes · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</div>' +
+      '<div class="q-label">' + voters_who_voted + '/' + quorum_needed + ' voters · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</div>' +
     '</div>' +
-    optHtml +
+    (voters_who_voted > 0 || isClosed ? '<div class="section-title" style="margin-top:12px;margin-bottom:8px;">Borda Scores</div>' + resultHtml : '') +
+    rankHtml +
     '<div class="v-msg" id="vmsg-' + proposal.id + '"></div>' +
     (isClosed && proposal.winning_option ? '<div class="winner-note">✓ Enacted: <strong>' + esc(proposal.winning_option) + '</strong></div>' : '') +
     (canClose ? '<div class="close-link" id="clink-' + proposal.id + '" style="display:block" onclick="closeGovProposal(' + proposal.id + ')">Close & finalize (quorum met)</div>' : '');
@@ -803,25 +842,65 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
   return card;
 }
 
-async function castGovVote(proposalId, optionId) {
-  if (!ME) { alert('Connect your API key to vote.'); return; }
+// Drag-and-drop for ranking
+var _govDragSrc = null;
+function govDragStart(e, pid) { _govDragSrc = e.currentTarget; e.dataTransfer.effectAllowed = 'move'; }
+function govDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+function govDrop(e, pid) {
+  e.preventDefault();
+  if (!_govDragSrc || _govDragSrc === e.currentTarget) return;
+  var list = document.getElementById('rank-list-' + pid);
+  var items = Array.from(list.children);
+  var srcIdx = items.indexOf(_govDragSrc);
+  var tgtIdx = items.indexOf(e.currentTarget);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+  if (srcIdx < tgtIdx) list.insertBefore(_govDragSrc, e.currentTarget.nextSibling);
+  else list.insertBefore(_govDragSrc, e.currentTarget);
+  govUpdateRankNums(pid);
+}
+function govMoveUp(pid, btn) {
+  var row = btn.closest('.vote-option');
+  var prev = row.previousElementSibling;
+  if (prev) { row.parentNode.insertBefore(row, prev); govUpdateRankNums(pid); }
+}
+function govMoveDown(pid, btn) {
+  var row = btn.closest('.vote-option');
+  var next = row.nextElementSibling;
+  if (next) { row.parentNode.insertBefore(next, row); govUpdateRankNums(pid); }
+}
+function govUpdateRankNums(pid) {
+  var list = document.getElementById('rank-list-' + pid);
+  if (!list) return;
+  Array.from(list.children).forEach(function(row, idx) {
+    row.dataset.rank = idx + 1;
+    var num = row.querySelector('.v-rank-num');
+    if (num) num.textContent = idx + 1;
+  });
+}
+
+async function submitGovRanking(proposalId) {
+  if (!ME) { alert('Connect your key first.'); return; }
+  var list = document.getElementById('rank-list-' + proposalId);
+  if (!list) return;
+  var rankings = Array.from(list.children).map(function(row){ return parseInt(row.dataset.optId || row.getAttribute('data-opt-id')); });
   var msg = document.getElementById('vmsg-' + proposalId);
-  if (msg) { msg.style.color='#888'; msg.textContent='Voting...'; }
+  if (msg) { msg.style.color='#888'; msg.textContent='Submitting ranking...'; }
   try {
     var r = await api('/governance/proposals/' + proposalId + '/vote', 'POST', {
-      voter_handle: ME.handle, option_id: optionId
+      voter_handle: ME.handle, rankings: rankings
     });
-    GOV_MY_VOTES[proposalId] = optionId;
     if (msg) {
-      msg.style.color = '#4caf50';
-      msg.textContent = 'Vote recorded! ' + r.total_votes + '/' + r.eligible_voters + ' votes.';
-      if (r.quorum_met) msg.textContent += ' Quorum met — can now close.';
+      msg.style.color='#4caf50';
+      msg.textContent = 'Ranking recorded! ' + r.voters + '/' + r.eligible_voters + ' voters.';
+      if (r.quorum_met) msg.textContent += ' Quorum met — can close.';
     }
-    setTimeout(loadGov, 600);
+    setTimeout(loadGov, 700);
   } catch(e) {
     if (msg) { msg.style.color='#f66'; msg.textContent=e.message; }
   }
 }
+
+function castGovVote() {}  // kept for compat, replaced by submitGovRanking
 
 async function closeGovProposal(proposalId) {
   if (!ME || !confirm('Close proposal #' + proposalId + ' and record the winner?')) return;
