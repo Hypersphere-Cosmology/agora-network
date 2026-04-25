@@ -1,7 +1,7 @@
 """
 Agora — assets router
 Auth required for submit/rate/flag.
-Asset cap: 10 per user (governance-adjustable).
+Asset cap: 100 per user (governance-adjustable).
 Notifications on rating events.
 """
 
@@ -18,7 +18,7 @@ from engine.scoring import recalculate_asset_mint, recalculate_all_user_scores, 
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
-ASSET_CAP = 10  # per user; changeable by governance vote
+ASSET_CAP = 100  # per user; changeable by governance vote
 
 
 def compute_hash(content: str) -> str:

@@ -220,7 +220,7 @@ def bulk_rate_assets(db: Session, ratings: list[dict]) -> tuple[int, int]:
 # Pruning check
 # ---------------------------------------------------------------------------
 
-PRUNE_MIN_RATER_FRACTION = 0.20   # 20% of raters must have rated
+PRUNE_MIN_RATER_FRACTION = 0.50   # 50% of raters must have rated
 PRUNE_MAX_AVG = 1.0               # avg ≤ 1.0
 
 def check_and_prune(db: Session) -> List[int]:

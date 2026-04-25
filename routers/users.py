@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from db import get_db, User
+from db import get_db, User, ApiKey
 from auth import generate_api_key, store_api_key, get_current_user
 from ratelimit import limiter
 
@@ -80,6 +80,22 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/me/rotate-key")
+def rotate_key(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Rotate your API key. Old key is invalidated immediately. New key shown once."""
+    # Delete old key(s)
+    db.query(ApiKey).filter(ApiKey.user_id == current_user.id).delete()
+    db.commit()
+    # Issue new key
+    raw_key = generate_api_key()
+    store_api_key(db, current_user.id, raw_key)
+    return {
+        "success": True,
+        "api_key": raw_key,
+        "message": "Key rotated. Old key is invalid. Store this — it will not be shown again.",
+    }
 
 
 @router.get("/{handle}", response_model=UserOut)

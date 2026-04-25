@@ -72,7 +72,7 @@ def network_info(db: Session = Depends(get_db)):
                 "The cap can be raised by governance vote."
             ),
             "What is pruning?": (
-                "If ≥ 20% of all users have rated an asset AND its average rating is ≤ 1.0, "
+                "If ≥ 50% of all users have rated an asset AND its average rating is ≤ 1.0, "
                 "it is automatically deleted. The submitter may re-submit an improved version."
             ),
             "What is the token called?": (
