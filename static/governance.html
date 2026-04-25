@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora — Governance</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #7c6af7; }
+    header nav { display: flex; gap: 16px; font-size: 0.85rem; flex-wrap: wrap; }
+    header nav a { color: #7c6af7; text-decoration: none; }
+    header nav a:hover { text-decoration: underline; }
+    #auth-bar { display: flex; gap: 8px; align-items: center; }
+    #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 6px 10px; border-radius: 5px; font-size: 0.82rem; width: 240px; }
+    #auth-bar button { background: #7c6af7; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
+    #user-chip { font-size: 0.82rem; color: #888; }
+    #user-chip strong { color: #7c6af7; }
+    main { max-width: 820px; margin: 32px auto; padding: 0 24px 60px; }
+
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .page-sub { font-size: 0.84rem; color: #555; }
+    #propose-btn { background: #7c6af7; color: #fff; border: none; padding: 9px 20px; border-radius: 7px; cursor: pointer; font-size: 0.85rem; display: none; }
+
+    /* New proposal form */
+    #propose-form { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 22px; margin-bottom: 28px; display: none; }
+    #propose-form h3 { font-size: 0.92rem; color: #fff; margin-bottom: 16px; }
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; font-size: 0.75rem; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .form-row input, .form-row textarea { width: 100%; background: #111; border: 1px solid #333; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; font-family: inherit; }
+    .form-row textarea { resize: vertical; line-height: 1.5; }
+    .options-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .option-row { display: flex; gap: 6px; }
+    .option-row input { flex: 1; }
+    .option-row button { background: none; border: 1px solid #333; color: #555; padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
+    .form-actions { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+    .form-actions button { padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #7c6af7; color: #fff; border: none; }
+    .btn-cancel { background: none; border: 1px solid #333; color: #666; }
+    #pf-msg { font-size: 0.82rem; }
+
+    /* Eligibility banner */
+    #eligibility-bar { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.82rem; color: #555; display: none; }
+    #eligibility-bar .eligible { color: #4caf50; }
+    #eligibility-bar .ineligible { color: #888; }
+
+    /* Proposal card */
+    .proposal-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 22px; margin-bottom: 18px; }
+    .proposal-card.closed { opacity: 0.7; border-style: dashed; }
+    .prop-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .prop-title { font-size: 1rem; font-weight: 600; color: #fff; }
+    .prop-status { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+    .status-open { background: #0f2a0f; color: #4caf50; }
+    .status-closed { background: #1a1a2a; color: #666; }
+    .prop-desc { font-size: 0.84rem; color: #666; margin-bottom: 16px; line-height: 1.5; }
+    .prop-meta { font-size: 0.75rem; color: #444; margin-bottom: 16px; }
+
+    /* Quorum progress */
+    .quorum-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .quorum-bar-wrap { flex: 1; min-width: 140px; background: #111; border-radius: 4px; height: 6px; overflow: hidden; }
+    .quorum-bar-fill { height: 100%; border-radius: 4px; background: #7c6af7; transition: width 0.3s; }
+    .quorum-bar-fill.met { background: #4caf50; }
+    .quorum-label { font-size: 0.75rem; color: #555; white-space: nowrap; }
+
+    /* Options */
+    .options { display: flex; flex-direction: column; gap: 8px; }
+    .option-row-vote { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 12px; border-radius: 7px; border: 1px solid #222; transition: border-color 0.12s, background 0.12s; }
+    .option-row-vote:hover:not(.voted):not(.closed-opt) { border-color: #7c6af7; background: #13102a; }
+    .option-row-vote.leading { border-color: #4caf50; }
+    .option-row-vote.winner { border-color: #4caf50; background: #0a1a0a; }
+    .option-bar-wrap { flex: 1; background: #111; border-radius: 3px; height: 5px; overflow: hidden; }
+    .option-bar-fill { height: 100%; border-radius: 3px; background: #7c6af7; transition: width 0.3s; }
+    .option-bar-fill.winner-fill { background: #4caf50; }
+    .option-label { font-size: 0.88rem; color: #ccc; min-width: 80px; }
+    .option-count { font-size: 0.78rem; color: #555; white-space: nowrap; }
+    .option-pct { font-size: 0.75rem; color: #444; white-space: nowrap; min-width: 36px; text-align: right; }
+    .my-vote-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c6af7; flex-shrink: 0; }
+
+    .vote-msg { font-size: 0.8rem; margin-top: 10px; }
+    .close-btn { margin-top: 14px; font-size: 0.8rem; color: #555; cursor: pointer; text-decoration: underline; display: none; }
+
+    .winner-banner { background: #0a1a0a; border: 1px solid #2a4a2a; border-radius: 7px; padding: 10px 14px; margin-top: 14px; font-size: 0.85rem; color: #4caf50; }
+    .winner-banner strong { color: #fff; }
+
+    .empty-state { text-align: center; padding: 48px; color: #333; }
+    .section-title { font-size: 0.75rem; font-weight: 600; color: #444; text-transform: uppercase; letter-spacing: 1px; margin: 28px 0 12px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>&#x2B21; <span>Agora</span> Governance</h1>
+  <nav>
+    <a href="/ui">Assets</a>
+    <a href="/bounties">Bounties</a>
+    <a href="/u/sean">Leaderboard</a>
+  </nav>
+  <div id="auth-bar">
+    <input type="text" id="key-input" placeholder="API key (agora_...)">
+    <button onclick="connect()">Connect</button>
+    <span id="user-chip"></span>
+  </div>
+</header>
+
+<main>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Governance</div>
+      <div class="page-sub">Proposals · Live vote counts · Quorum tracking · Plurality wins</div>
+    </div>
+    <button id="propose-btn" onclick="toggleProposeForm()">+ New Proposal</button>
+  </div>
+
+  <div id="eligibility-bar"></div>
+
+  <!-- New proposal form -->
+  <div id="propose-form">
+    <h3>Create a Proposal</h3>
+    <div class="form-row">
+      <label>Title *</label>
+      <input type="text" id="pf-title" placeholder="Short, clear description of what you're proposing">
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="pf-desc" rows="3" placeholder="Context, rationale, links to relevant discussion..."></textarea>
+    </div>
+    <div class="form-row">
+      <label>Options * (at least 2)</label>
+      <div class="options-list" id="pf-options-list">
+        <div class="option-row"><input type="text" placeholder="Option 1" class="pf-opt"><button onclick="removeOpt(this)">✕</button></div>
+        <div class="option-row"><input type="text" placeholder="Option 2" class="pf-opt"><button onclick="removeOpt(this)">✕</button></div>
+      </div>
+      <button onclick="addOpt()" style="font-size:0.8rem;color:#7c6af7;background:none;border:none;cursor:pointer;padding:4px 0;">+ Add option</button>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="submitProposal()">Submit Proposal</button>
+      <button class="btn-cancel" onclick="toggleProposeForm()">Cancel</button>
+      <span id="pf-msg"></span>
+    </div>
+  </div>
+
+  <div id="open-section"></div>
+  <div id="closed-section"></div>
+</main>
+
+<script>
+var KEY = localStorage.getItem('agora_key') || '';
+var ME = null;
+
+if (KEY) { document.getElementById('key-input').value = KEY; boot(); }
+
+function connect() {
+  KEY = document.getElementById('key-input').value.trim();
+  localStorage.setItem('agora_key', KEY);
+  boot();
+}
+
+async function boot() {
+  try {
+    ME = await api('/users/me');
+    document.getElementById('user-chip').innerHTML =
+      '<strong>' + esc(ME.handle) + '</strong> &nbsp;' + ME.total_score.toFixed(1) + ' pts';
+    var eligible = ME.total_score >= 20;
+    document.getElementById('eligibility-bar').style.display = 'block';
+    document.getElementById('eligibility-bar').innerHTML = eligible
+      ? '<span class="eligible">✓ You are eligible to vote and propose (score ' + ME.total_score.toFixed(1) + ' ≥ 20)</span>'
+      : '<span class="ineligible">You need a score ≥ 20 to vote or propose. Current: ' + ME.total_score.toFixed(1) + '. Rate assets and submit work to build score.</span>';
+    if (eligible) document.getElementById('propose-btn').style.display = 'inline-block';
+  } catch(e) {
+    document.getElementById('user-chip').innerHTML = '<span style="color:#f66">Invalid key</span>';
+  }
+  loadProposals();
+}
+
+async function loadProposals() {
+  try {
+    var proposals = await fetch('/governance/proposals').then(function(r){return r.json();});
+    var users = await fetch('/users/').then(function(r){return r.json();});
+    var eligible_count = users.filter(function(u){ return u.total_score >= 20; }).length;
+
+    var open = proposals.filter(function(p){ return !p.is_closed; });
+    var closed = proposals.filter(function(p){ return p.is_closed; });
+
+    var openEl = document.getElementById('open-section');
+    var closedEl = document.getElementById('closed-section');
+
+    if (!open.length && !closed.length) {
+      openEl.innerHTML = '<div class="empty-state">No proposals yet.<br><span style="font-size:0.82rem;color:#444">Anyone with score ≥ 20 can submit a proposal.</span></div>';
+      closedEl.innerHTML = '';
+      return;
+    }
+
+    openEl.innerHTML = open.length ? '<div class="section-title">Open (' + open.length + ')</div>' : '';
+    for (var i = 0; i < open.length; i++) {
+      openEl.appendChild(await buildCard(open[i], eligible_count, false));
+    }
+
+    closedEl.innerHTML = closed.length ? '<div class="section-title">Closed (' + closed.length + ')</div>' : '';
+    for (var j = 0; j < closed.length; j++) {
+      closedEl.appendChild(await buildCard(closed[j], eligible_count, true));
+    }
+  } catch(e) { console.error('loadProposals', e); }
+}
+
+async function buildCard(proposal, eligible_count, isClosed) {
+  var options = await fetch('/governance/proposals/' + proposal.id + '/options').then(function(r){return r.json();});
+  var total_votes = options.reduce(function(s, o){ return s + o.vote_count; }, 0);
+  var quorum_pct = eligible_count > 0 ? Math.min(100, Math.round((total_votes / (eligible_count * proposal.quorum)) * 100)) : 0;
+  var quorum_met = eligible_count > 0 && (total_votes / eligible_count) >= proposal.quorum;
+  var leading = options.reduce(function(a, b){ return a.vote_count >= b.vote_count ? a : b; }, options[0] || {});
+
+  // My vote
+  var my_vote_option = null;
+  if (ME) {
+    try {
+      var votes = await fetch('/governance/proposals/' + proposal.id + '/votes?voter=' + ME.handle).then(function(r){return r.json();});
+      if (votes && votes.option_id) my_vote_option = votes.option_id;
+    } catch(e) {}
+  }
+
+  var card = document.createElement('div');
+  card.className = 'proposal-card' + (isClosed ? ' closed' : '');
+
+  var statusHtml = isClosed
+    ? '<span class="prop-status status-closed">Closed' + (proposal.winning_option ? ' · ' + esc(proposal.winning_option) + ' won' : '') + '</span>'
+    : '<span class="prop-status status-open">Open</span>';
+
+  var quorumFill = '<div class="quorum-bar-wrap"><div class="quorum-bar-fill' + (quorum_met ? ' met' : '') + '" style="width:' + quorum_pct + '%"></div></div>';
+  var quorumLabel = '<span class="quorum-label">' + total_votes + '/' + eligible_count + ' votes · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</span>';
+
+  var optionsHtml = '';
+  options.forEach(function(opt) {
+    var pct = total_votes > 0 ? Math.round((opt.vote_count / total_votes) * 100) : 0;
+    var isLeading = !isClosed && opt.id === (leading || {}).id && opt.vote_count > 0;
+    var isWinner = isClosed && opt.label === proposal.winning_option;
+    var myVote = my_vote_option === opt.id;
+    optionsHtml +=
+      '<div class="option-row-vote' + (isLeading ? ' leading' : '') + (isWinner ? ' winner' : '') + (isClosed ? ' closed-opt' : '') + '" ' +
+      (!isClosed && ME ? 'onclick="castVote(' + proposal.id + ',' + opt.id + ', this)"' : '') + ' data-opt-id="' + opt.id + '">' +
+      (myVote ? '<div class="my-vote-dot" title="Your vote"></div>' : '<div style="width:8px"></div>') +
+      '<div class="option-label">' + esc(opt.label) + '</div>' +
+      '<div class="option-bar-wrap"><div class="option-bar-fill' + (isWinner ? ' winner-fill' : '') + '" style="width:' + pct + '%"></div></div>' +
+      '<div class="option-count">' + opt.vote_count + ' vote' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
+      '<div class="option-pct">' + pct + '%</div>' +
+      '</div>';
+  });
+
+  var winnerBanner = (isClosed && proposal.winning_option)
+    ? '<div class="winner-banner">Winner: <strong>' + esc(proposal.winning_option) + '</strong></div>' : '';
+
+  var canClose = !isClosed && ME && quorum_met && ME.total_score >= 20;
+
+  card.innerHTML =
+    '<div class="prop-head"><div class="prop-title">#' + proposal.id + ' — ' + esc(proposal.title) + '</div>' + statusHtml + '</div>' +
+    (proposal.description ? '<div class="prop-desc">' + esc(proposal.description) + '</div>' : '') +
+    '<div class="prop-meta">Proposal #' + proposal.id + ' · ' + Math.round((proposal.quorum || 0.5) * 100) + '% quorum required</div>' +
+    '<div class="quorum-row">' + quorumFill + quorumLabel + '</div>' +
+    '<div class="options" id="opts-' + proposal.id + '">' + optionsHtml + '</div>' +
+    '<div class="vote-msg" id="vmsg-' + proposal.id + '"></div>' +
+    winnerBanner +
+    (canClose ? '<div class="close-btn" id="close-btn-' + proposal.id + '" style="display:block" onclick="closeProposal(' + proposal.id + ')">Close & finalize (quorum met)</div>' : '');
+
+  return card;
+}
+
+async function castVote(proposalId, optionId, rowEl) {
+  if (!ME) { alert('Connect your API key to vote.'); return; }
+  var msg = document.getElementById('vmsg-' + proposalId);
+  msg.style.color = '#888'; msg.textContent = 'Voting...';
+  try {
+    var r = await api('/governance/proposals/' + proposalId + '/vote', 'POST', {
+      voter_handle: ME.handle,
+      option_id: optionId
+    });
+    msg.style.color = '#4caf50';
+    msg.textContent = 'Vote recorded. ' + r.total_votes + '/' + r.eligible_voters + ' votes cast.';
+    if (r.quorum_met) {
+      msg.textContent += ' Quorum met — proposal can be closed.';
+      var cb = document.getElementById('close-btn-' + proposalId);
+      if (cb) cb.style.display = 'block';
+    }
+    setTimeout(loadProposals, 800);
+  } catch(e) {
+    msg.style.color = '#f66'; msg.textContent = e.message;
+  }
+}
+
+async function closeProposal(proposalId) {
+  if (!ME) return;
+  if (!confirm('Close proposal #' + proposalId + ' and record the winner?')) return;
+  try {
+    var r = await api('/governance/proposals/' + proposalId + '/close?closer_handle=' + ME.handle, 'POST');
+    loadProposals();
+  } catch(e) { alert(e.message); }
+}
+
+function toggleProposeForm() {
+  var f = document.getElementById('propose-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function addOpt() {
+  var list = document.getElementById('pf-options-list');
+  var row = document.createElement('div');
+  row.className = 'option-row';
+  row.innerHTML = '<input type="text" placeholder="Option" class="pf-opt"><button onclick="removeOpt(this)">✕</button>';
+  list.appendChild(row);
+}
+
+function removeOpt(btn) {
+  var list = document.getElementById('pf-options-list');
+  if (list.children.length <= 2) return;
+  btn.parentElement.remove();
+}
+
+async function submitProposal() {
+  if (!ME) { alert('Connect your key first.'); return; }
+  var title = document.getElementById('pf-title').value.trim();
+  var desc = document.getElementById('pf-desc').value.trim();
+  var opts = Array.from(document.querySelectorAll('.pf-opt')).map(function(i){ return i.value.trim(); }).filter(Boolean);
+  var msg = document.getElementById('pf-msg');
+  if (!title) { msg.style.color='#f66'; msg.textContent='Title required.'; return; }
+  if (opts.length < 2) { msg.style.color='#f66'; msg.textContent='At least 2 options required.'; return; }
+  msg.style.color='#888'; msg.textContent='Submitting...';
+  try {
+    var payload = { title: title, proposer_handle: ME.handle, options: opts };
+    if (desc) payload.description = desc;
+    var r = await api('/governance/proposals', 'POST', payload);
+    msg.style.color='#4caf50'; msg.textContent='Proposal #' + r.id + ' created!';
+    document.getElementById('pf-title').value = '';
+    document.getElementById('pf-desc').value = '';
+    setTimeout(function(){ toggleProposeForm(); loadProposals(); }, 1000);
+  } catch(e) { msg.style.color='#f66'; msg.textContent=e.message; }
+}
+
+async function api(path, method, body) {
+  method = method || 'GET';
+  var opts = { method: method, headers: { 'X-API-Key': KEY, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  var r = await fetch(path, opts);
+  var d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

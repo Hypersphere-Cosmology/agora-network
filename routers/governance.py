@@ -94,6 +94,16 @@ def list_proposals(db: Session = Depends(get_db)):
     return db.query(Proposal).all()
 
 
+@router.get("/proposals/{proposal_id}/votes")
+def get_my_vote(proposal_id: int, voter: str, db: Session = Depends(get_db)):
+    """Get a specific user's vote on a proposal (for UI highlighting)."""
+    user = db.query(User).filter(User.handle == voter).first()
+    if not user:
+        return {"option_id": None}
+    vote = db.query(Vote).filter(Vote.user_id == user.id, Vote.proposal_id == proposal_id).first()
+    return {"option_id": vote.option_id if vote else None}
+
+
 @router.get("/proposals/{proposal_id}/options", response_model=list[OptionOut])
 def get_options(proposal_id: int, db: Session = Depends(get_db)):
     proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
