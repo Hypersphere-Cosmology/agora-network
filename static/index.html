@@ -465,6 +465,7 @@
 let KEY = localStorage.getItem('agora_key') || '';
 let ME = null;
 let ASSETS = [];
+var USD_PER_TOKEN = 1.00;
 let CURRENT_ID = null;
 let SCORE = null;
 
@@ -729,7 +730,6 @@ async function boot() {
   }
 }
 
-var USD_PER_TOKEN = 0.50;
 
 async function loadStatus() {
   try {
