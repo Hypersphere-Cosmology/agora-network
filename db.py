@@ -258,3 +258,39 @@ class Comment(Base):
     is_deleted = Column(Boolean, default=False)
 
     author = relationship("User")
+
+
+class Service(Base):
+    __tablename__ = "services"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    provider_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    price_unit = Column(String, nullable=False)
+    delivery_notes = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    provider = relationship("User")
+
+
+class ServiceOrder(Base):
+    __tablename__ = "service_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
+    buyer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    quantity = Column(Float, default=1.0)
+    total_tokens = Column(Float, nullable=False)
+    fee = Column(Float, nullable=False)
+    status = Column(String, default="pending")
+    request_note = Column(String, nullable=True)
+    delivery_note = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow)
+
+    service = relationship("Service")
+    buyer = relationship("User", foreign_keys=[buyer_id])
