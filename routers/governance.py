@@ -223,7 +223,36 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
         )
 
     # Borda count: highest borda_points wins
-    winning = max(proposal.options, key=lambda o: o.borda_points)
+    max_pts = max(o.borda_points for o in proposal.options)
+    leaders = [o for o in proposal.options if o.borda_points == max_pts]
+
+    if len(leaders) == 1:
+        winning = leaders[0]
+    else:
+        # Tiebreaker 1: most first-place votes
+        def first_place_votes(opt):
+            return db.query(Vote).filter(
+                Vote.proposal_id == proposal_id,
+                Vote.option_id == opt.id,
+                Vote.rank == 1
+            ).count()
+
+        fp_counts = {o.id: first_place_votes(o) for o in leaders}
+        max_fp = max(fp_counts.values())
+        fp_leaders = [o for o in leaders if fp_counts[o.id] == max_fp]
+
+        if len(fp_leaders) == 1:
+            winning = fp_leaders[0]
+        else:
+            # Tiebreaker 2: status quo (no change) — mark as tie, don't auto-execute
+            proposal.winning_option = "TIE — status quo prevails (no change enacted)"
+            proposal.is_closed = True
+            proposal.closed_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(proposal)
+            return proposal
+
+        winning = fp_leaders[0]
     proposal.winning_option = winning.label
     proposal.is_closed = True
     proposal.closed_at = datetime.now(timezone.utc)
