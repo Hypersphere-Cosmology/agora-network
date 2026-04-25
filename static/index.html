@@ -750,17 +750,18 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
   var options = await fetch('/governance/proposals/' + proposal.id + '/options').then(function(r){return r.json();});
   var distinct_voters = options.length ? options[0].vote_count : 0;  // approximate — use quorum check
   var quorum_needed = Math.max(1, Math.ceil(eligible_count * (proposal.quorum || 1.0)));
-  var max_borda = options.reduce(function(m,o){ return Math.max(m, o.borda_points); }, 0);
-
-  // Count distinct voters from borda scores
+  // Count distinct voters: each voter contributes n*(n+1)/2 total rank points
   var n = options.length;
-  // Each voter contributes exactly sum(0..n-1) = n*(n-1)/2 total Borda points across all options
-  var total_borda = options.reduce(function(s,o){ return s + o.borda_points; }, 0);
-  var voters_who_voted = n > 1 ? Math.round(total_borda / (n*(n-1)/2)) : 0;
+  var total_rank = options.reduce(function(s,o){ return s + (o.rank_total||0); }, 0);
+  var voters_who_voted = n > 0 ? Math.round(total_rank / (n*(n+1)/2)) : 0;
+  var min_rank = options.reduce(function(m,o){ return o.rank_total > 0 ? Math.min(m, o.rank_total) : m; }, 99999);
+  var max_rank = options.reduce(function(m,o){ return Math.max(m, o.rank_total||0); }, 0);
 
   var quorum_pct = quorum_needed > 0 ? Math.min(100, Math.round((voters_who_voted / quorum_needed) * 100)) : 100;
   var quorum_met = voters_who_voted >= quorum_needed;
-  var leading = options.reduce(function(a,b){ return a.borda_points >= b.borda_points ? a : b; }, options[0] || {borda_points:0});
+  // Leading = lowest rank_total (ignore unvoted options with 0)
+  var voted_opts = options.filter(function(o){ return o.rank_total > 0; });
+  var leading = voted_opts.length ? voted_opts.reduce(function(a,b){ return a.rank_total <= b.rank_total ? a : b; }) : null;
 
   // My ballot
   var my_rankings = {};  // option_id -> rank
@@ -782,17 +783,23 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
 
   // Results section (scores)
   var resultHtml = '';
-  var sortedByBorda = options.slice().sort(function(a,b){ return b.borda_points - a.borda_points; });
-  sortedByBorda.forEach(function(opt) {
-    var pct = max_borda > 0 ? Math.round((opt.borda_points / max_borda) * 100) : 0;
+  // Sort by rank_total ascending (lowest = winning)
+  var sortedByRank = options.slice().sort(function(a,b){ return (a.rank_total||999) - (b.rank_total||999); });
+  sortedByRank.forEach(function(opt) {
+    // Bar width: inverted — lowest rank_total gets widest bar
+    var pct = 0;
+    if (max_rank > 0 && opt.rank_total > 0) {
+      pct = Math.round(((max_rank - opt.rank_total + 1) / max_rank) * 100);
+    }
     var isWinner = isClosed && opt.label === proposal.winning_option;
-    var isLeading = !isClosed && opt.id === (leading||{}).id && opt.borda_points > 0;
+    var isLeading = !isClosed && leading && opt.id === leading.id && opt.rank_total > 0;
     var cls = 'vote-option closed-opt' + (isWinner || isLeading ? ' winning' : '');
+    var rankLabel = opt.rank_total > 0 ? ('total rank: ' + opt.rank_total) : 'no votes yet';
     resultHtml +=
       '<div class="' + cls + '">' +
       '<div class="v-label">' + esc(opt.label) + '</div>' +
       '<div class="v-bar"><div class="v-bar-fill' + (isWinner ? ' v-win' : '') + '" style="width:' + pct + '%"></div></div>' +
-      '<div class="v-count">' + opt.borda_points + ' pts · ' + opt.vote_count + ' voter' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
+      '<div class="v-count">' + rankLabel + ' · ' + opt.vote_count + ' voter' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
       '</div>';
   });
 
@@ -833,7 +840,7 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
       '<div class="q-bar"><div class="q-fill' + (quorum_met ? ' q-met' : '') + '" style="width:' + quorum_pct + '%"></div></div>' +
       '<div class="q-label">' + voters_who_voted + '/' + quorum_needed + ' voters · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</div>' +
     '</div>' +
-    (voters_who_voted > 0 || isClosed ? '<div class="section-title" style="margin-top:12px;margin-bottom:8px;">Borda Scores</div>' + resultHtml : '') +
+    (voters_who_voted > 0 || isClosed ? '<div class="section-title" style="margin-top:12px;margin-bottom:8px;">Rank Totals (lower wins)</div>' + resultHtml : '') +
     rankHtml +
     '<div class="v-msg" id="vmsg-' + proposal.id + '"></div>' +
     (isClosed && proposal.winning_option ? '<div class="winner-note">✓ Enacted: <strong>' + esc(proposal.winning_option) + '</strong></div>' : '') +

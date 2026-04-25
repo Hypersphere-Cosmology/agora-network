@@ -172,8 +172,9 @@ class ProposalOption(Base):
     id = Column(Integer, primary_key=True, index=True)
     proposal_id = Column(Integer, ForeignKey("proposals.id"), nullable=False)
     label = Column(String, nullable=False)
-    vote_count = Column(Integer, default=0)   # number of voters who ranked this option
-    borda_points = Column(Integer, default=0)  # total Borda points (higher = preferred)
+    vote_count = Column(Integer, default=0)    # number of voters who ranked this option
+    borda_points = Column(Integer, default=0)  # unused, kept for compat
+    rank_total = Column(Integer, default=0)    # sum of ranks given (lower = more preferred)
 
     proposal = relationship("Proposal", back_populates="options")
 

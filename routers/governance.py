@@ -47,7 +47,8 @@ class OptionOut(BaseModel):
     id: int
     label: str
     vote_count: int     # distinct voters who ranked this option
-    borda_points: int   # total Borda score (higher = more preferred)
+    borda_points: int   # unused legacy field
+    rank_total: int     # sum of ranks (lower = more preferred)
 
     class Config:
         from_attributes = True
@@ -151,18 +152,17 @@ def cast_ranked_vote(proposal_id: int, payload: RankedVoteSubmit, db: Session = 
     # Remove old ballot for this voter on this proposal
     old_votes = db.query(Vote).filter(Vote.user_id == voter.id, Vote.proposal_id == proposal_id).all()
     if old_votes:
-        # Subtract old Borda points
+        # Subtract old rank contributions
         for v in old_votes:
             opt = db.query(ProposalOption).filter(ProposalOption.id == v.option_id).first()
             if opt:
-                opt.borda_points = max(0, opt.borda_points - (n - v.rank))
+                opt.rank_total = max(0, opt.rank_total - v.rank)
                 opt.vote_count = max(0, opt.vote_count - 1)
         db.query(Vote).filter(Vote.user_id == voter.id, Vote.proposal_id == proposal_id).delete()
         db.flush()
 
-    # Add new ballot
+    # Add new ballot — accumulate rank numbers (lower rank total = more preferred)
     for rank_pos, option_id in enumerate(payload.rankings, start=1):
-        borda_pts = n - rank_pos   # 1st gets N-1 pts, last gets 0
         vote = Vote(
             user_id=voter.id,
             proposal_id=proposal_id,
@@ -172,7 +172,7 @@ def cast_ranked_vote(proposal_id: int, payload: RankedVoteSubmit, db: Session = 
         db.add(vote)
         opt = db.query(ProposalOption).filter(ProposalOption.id == option_id).first()
         if opt:
-            opt.borda_points += borda_pts
+            opt.rank_total += rank_pos
             opt.vote_count += 1
 
     db.commit()
@@ -190,8 +190,8 @@ def cast_ranked_vote(proposal_id: int, payload: RankedVoteSubmit, db: Session = 
         "eligible_voters": eligible_voters,
         "quorum_met": quorum_met,
         "quorum_required": proposal.quorum,
-        "borda_scores": {o.label: o.borda_points for o in
-                         db.query(ProposalOption).filter(ProposalOption.proposal_id == proposal_id).all()},
+        "rank_totals": {o.label: o.rank_total for o in
+                        db.query(ProposalOption).filter(ProposalOption.proposal_id == proposal_id).all()},
     }
 
 
@@ -222,9 +222,13 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
             detail=f"Quorum not met ({distinct_voters}/{eligible_voters} voters, need {proposal.quorum*100:.0f}%)"
         )
 
-    # Borda count: highest borda_points wins
-    max_pts = max(o.borda_points for o in proposal.options)
-    leaders = [o for o in proposal.options if o.borda_points == max_pts]
+    # Ranked choice: lowest rank_total wins
+    # Only consider options that received at least one vote
+    voted_options = [o for o in proposal.options if o.vote_count > 0]
+    if not voted_options:
+        voted_options = proposal.options
+    min_total = min(o.rank_total for o in voted_options)
+    leaders = [o for o in voted_options if o.rank_total == min_total]
 
     if len(leaders) == 1:
         winning = leaders[0]
