@@ -114,6 +114,34 @@
     .gov-eligibility { font-size:0.8rem; padding:10px 14px; border-radius:7px; margin-bottom:16px; }
     .gov-eligible { background:#0f2a0f; color:#4caf50; border:1px solid #1a4a1a; }
     .gov-ineligible { background:#1a1a1a; color:#666; border:1px solid #2a2a2a; }
+    .svc-card { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:10px; padding:18px; margin-bottom:12px; }
+    .svc-card:hover { border-color:#7c6af7; }
+    .svc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+    .svc-title { font-size:0.97rem; font-weight:600; color:#fff; }
+    .svc-price { font-size:1rem; font-weight:700; color:#4caf50; white-space:nowrap; }
+    .svc-meta { font-size:0.75rem; color:#555; margin-bottom:8px; }
+    .svc-desc { font-size:0.84rem; color:#888; line-height:1.5; margin-bottom:12px; }
+    .svc-delivery { font-size:0.78rem; color:#555; font-style:italic; margin-bottom:12px; }
+    .cat-badge { display:inline-block; font-size:0.68rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; padding:2px 8px; border-radius:12px; margin-right:6px; }
+    .cat-compute { background:#1a1a2a; color:#7c6af7; }
+    .cat-storage { background:#1a2a1a; color:#4caf50; }
+    .cat-data { background:#2a1a1a; color:#f5a623; }
+    .cat-content { background:#2a2a1a; color:#f0e040; }
+    .cat-social { background:#1a2a2a; color:#4dd0e1; }
+    .cat-attestation { background:#2a1a2a; color:#ce93d8; }
+    .cat-other { background:#2a2a2a; color:#888; }
+    .order-form { background:#111; border:1px solid #2a2a2a; border-radius:8px; padding:14px; margin-top:10px; display:none; }
+    .order-form textarea { width:100%; background:#0a0a0a; border:1px solid #2a2a2a; color:#e0e0e0; padding:8px; border-radius:5px; font-size:0.83rem; resize:vertical; font-family:inherit; }
+    .svc-filter-bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+    .svc-filter { background:#1a1a1a; border:1px solid #2a2a2a; color:#666; padding:5px 12px; border-radius:20px; cursor:pointer; font-size:0.78rem; }
+    .svc-filter.active { border-color:#7c6af7; color:#7c6af7; background:#13102a; }
+    .order-status-badge { display:inline-block; font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:12px; text-transform:uppercase; }
+    .status-pending { background:#2a2a1a; color:#f5a623; }
+    .status-accepted { background:#1a2a2a; color:#4dd0e1; }
+    .status-delivered { background:#1a2a1a; color:#4caf50; }
+    .status-complete { background:#0a1a0a; color:#4caf50; border:1px solid #2a4a2a; }
+    .status-disputed { background:#2a1a1a; color:#f66; }
+    .status-cancelled { background:#1a1a1a; color:#444; }
     #rate-section h4 { font-size: 0.85rem; color: #888; margin-bottom: 12px; border-top: 1px solid #222; padding-top: 18px; }
     .stars { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
     .star { width: 38px; height: 38px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.85rem; color: #888; transition: all 0.1s; user-select: none; }
@@ -185,6 +213,7 @@
       <div class="tab active" onclick="showTab('assets')">Assets</div>
       <div class="tab" onclick="showTab('market')">Marketplace</div>
       <div class="tab" onclick="showTab('users')">Users</div>
+      <div class="tab" onclick="showTab('services')">Services</div>
       <div class="tab" onclick="showTab('gov')">Governance</div>
       <div class="tab" onclick="showTab('profile')">Profile</div>
     </div>
@@ -233,6 +262,11 @@
   <!-- ASSETS PANE -->
   <div id="pane-assets" class="pane active">
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
+  </div>
+
+  <!-- SERVICES PANE -->
+  <div id="pane-services" class="pane">
+    <div id="services-list"><div style="color:#444;padding:32px;text-align:center">Loading...</div></div>
   </div>
 
   <!-- GOVERNANCE PANE -->
@@ -375,15 +409,17 @@ async function submitAsset() {
 }
 
 function showTab(name) {
-  var tabs = ['assets','market','users','gov','profile'];
+  var tabs = ['assets','market','users','services','gov','profile'];
   document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
   document.getElementById('pane-assets').classList.toggle('active', name==='assets');
   document.getElementById('pane-market').classList.toggle('active', name==='market');
   document.getElementById('pane-users').classList.toggle('active', name==='users');
+  document.getElementById('pane-services').classList.toggle('active', name==='services');
   document.getElementById('pane-gov').classList.toggle('active', name==='gov');
   document.getElementById('pane-profile').classList.toggle('active', name==='profile');
   if (name === 'market') loadListings();
   if (name === 'users') loadUsers();
+  if (name === 'services') loadServices();
   if (name === 'gov') loadGov();
   if (name === 'profile') loadProfile();
 }
@@ -674,6 +710,149 @@ async function submitRating() {
     document.getElementById('rating-msg').style.color = '#f66';
     document.getElementById('rating-msg').textContent = e.message;
   }
+}
+
+// SERVICES
+var SVC_FILTER = 'all';
+
+async function loadServices() {
+  var el = document.getElementById('services-list');
+  if (!el) return;
+  try {
+    var url = '/services/' + (SVC_FILTER !== 'all' ? '?category=' + SVC_FILTER : '');
+    var services = await fetch(url).then(function(r){return r.json();});
+
+    var cats = ['all','compute','storage','data','content','social','attestation','other'];
+    var filterHtml = '<div class="svc-filter-bar">';
+    cats.forEach(function(c){
+      filterHtml += '<div class="svc-filter' + (SVC_FILTER===c?' active':'') + '" onclick="setSvcFilter(\'' + c + '\')">' + c + '</div>';
+    });
+    filterHtml += '</div>';
+
+    if (ME) {
+      filterHtml += '<button onclick="toggleNewServiceForm()" style="background:#7c6af7;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:0.82rem;margin-bottom:16px;">+ List a Service</button>';
+    }
+
+    // New service form
+    filterHtml += '<div id="new-svc-form" style="display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:16px;">' +
+      '<h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">List a New Service</h3>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Title *</label>' +
+        '<input type="text" id="ns-title" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>' +
+        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Category *</label>' +
+        '<select id="ns-cat" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">' +
+        '<option>compute</option><option>storage</option><option>data</option><option>content</option><option>social</option><option>attestation</option><option>other</option>' +
+        '</select></div>' +
+        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Price (A) *</label>' +
+        '<input type="number" id="ns-price" min="0.01" step="0.01" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>' +
+        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Unit *</label>' +
+        '<select id="ns-unit" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">' +
+        '<option value="per_call">per_call</option><option value="per_mb">per_mb</option><option value="per_hour">per_hour</option><option value="per_item">per_item</option><option value="flat">flat</option>' +
+        '</select></div>' +
+      '</div>' +
+      '<label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Description *</label>' +
+      '<textarea id="ns-desc" rows="3" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;resize:vertical;font-family:inherit;margin-bottom:8px;" placeholder="What do you offer? What makes it worth paying for?"></textarea>' +
+      '<label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Delivery notes</label>' +
+      '<input type="text" id="ns-delivery" placeholder="How will you deliver? Timeline?" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;margin-bottom:12px;">' +
+      '<div style="display:flex;gap:8px;align-items:center;">' +
+        '<button onclick="submitNewService()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.84rem;">List Service</button>' +
+        '<button onclick="toggleNewServiceForm()" style="background:none;border:1px solid #333;color:#666;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:0.84rem;">Cancel</button>' +
+        '<span id="ns-msg" style="font-size:0.8rem;"></span>' +
+      '</div></div>';
+
+    if (!services.length) {
+      el.innerHTML = filterHtml + '<div style="color:#444;padding:32px;text-align:center">No services listed yet in this category.</div>';
+      return;
+    }
+
+    el.innerHTML = filterHtml;
+    services.forEach(function(s) {
+      var isMine = ME && s.provider === ME.handle;
+      var catCls = 'cat-' + s.category;
+      var card = document.createElement('div');
+      card.className = 'svc-card';
+      card.innerHTML =
+        '<div class="svc-top">' +
+          '<div>' +
+            '<span class="cat-badge ' + catCls + '">' + s.category + '</span>' +
+            '<span class="svc-title">' + esc(s.title) + '</span>' +
+            (isMine ? ' <span style="font-size:0.7rem;color:#555">(yours)</span>' : '') +
+          '</div>' +
+          '<div class="svc-price">' + Number(s.price).toFixed(2) + ' A/' + s.price_unit.replace('per_','') + '</div>' +
+        '</div>' +
+        '<div class="svc-meta">by @' + esc(s.provider) + ' · service #' + s.id + '</div>' +
+        '<div class="svc-desc">' + esc(s.description) + '</div>' +
+        (s.delivery_notes ? '<div class="svc-delivery">📦 ' + esc(s.delivery_notes) + '</div>' : '') +
+        (!isMine && ME ? '<button onclick="toggleOrderForm(' + s.id + ')" style="background:#2a2a2a;color:#ccc;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;">Order</button>' : '') +
+        (isMine ? '<button onclick="removeService(' + s.id + ')" style="background:none;border:1px solid #333;color:#555;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;">Remove Listing</button>' : '') +
+        '<div class="order-form" id="order-form-' + s.id + '">' +
+          '<div style="font-size:0.78rem;color:#555;margin-bottom:6px;">Quantity: <input type="number" id="oqty-' + s.id + '" value="1" min="0.01" step="0.01" style="width:70px;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:4px 6px;border-radius:4px;font-size:0.82rem;"> ' + s.price_unit.replace('_',' ') + (ME ? ' · Cost: ' + Number(s.price).toFixed(2) + ' A + fee' : '') + '</div>' +
+          '<textarea id="oreq-' + s.id + '" rows="2" placeholder="Describe what you need specifically..."></textarea>' +
+          '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">' +
+            '<button onclick="placeOrder(' + s.id + ')" style="background:#7c6af7;color:#fff;border:none;padding:7px 16px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Place Order</button>' +
+            '<button onclick="toggleOrderForm(' + s.id + ')" style="background:none;border:1px solid #333;color:#666;padding:7px 12px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Cancel</button>' +
+            '<span id="omsg-' + s.id + '" style="font-size:0.78rem;"></span>' +
+          '</div>' +
+        '</div>';
+      el.appendChild(card);
+    });
+  } catch(e) { if(el) el.innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>'; }
+}
+
+function setSvcFilter(cat) { SVC_FILTER = cat; loadServices(); }
+function toggleOrderForm(sid) {
+  var f = document.getElementById('order-form-' + sid);
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+function toggleNewServiceForm() {
+  var f = document.getElementById('new-svc-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function placeOrder(svcId) {
+  if (!ME) { alert('Connect your key first.'); return; }
+  var qty = parseFloat(document.getElementById('oqty-' + svcId).value) || 1;
+  var note = document.getElementById('oreq-' + svcId).value.trim();
+  var msg = document.getElementById('omsg-' + svcId);
+  msg.style.color='#888'; msg.textContent='Placing order...';
+  try {
+    var payload = {quantity: qty};
+    if (note) payload.request_note = note;
+    var r = await api('/services/' + svcId + '/order', 'POST', payload);
+    msg.style.color='#4caf50';
+    msg.textContent = 'Order #' + r.order_id + ' placed! ' + Number(r.total_tokens).toFixed(4) + ' A escrowed.';
+    setTimeout(function(){ toggleOrderForm(svcId); boot(); }, 1500);
+  } catch(e) { msg.style.color='#f66'; msg.textContent=e.message; }
+}
+
+async function removeService(svcId) {
+  if (!confirm('Remove service listing #' + svcId + '?')) return;
+  try {
+    await api('/services/' + svcId, 'DELETE');
+    loadServices();
+  } catch(e) { alert(e.message); }
+}
+
+async function submitNewService() {
+  if (!ME) return;
+  var payload = {
+    title: document.getElementById('ns-title').value.trim(),
+    description: document.getElementById('ns-desc').value.trim(),
+    category: document.getElementById('ns-cat').value,
+    price: parseFloat(document.getElementById('ns-price').value),
+    price_unit: document.getElementById('ns-unit').value,
+    delivery_notes: document.getElementById('ns-delivery').value.trim() || undefined,
+  };
+  var msg = document.getElementById('ns-msg');
+  if (!payload.title || !payload.description || !payload.price) {
+    msg.style.color='#f66'; msg.textContent='Title, description and price required.'; return;
+  }
+  msg.style.color='#888'; msg.textContent='Listing...';
+  try {
+    var r = await api('/services/', 'POST', payload);
+    msg.style.color='#4caf50'; msg.textContent='Listed as service #' + r.id + '!';
+    setTimeout(function(){ toggleNewServiceForm(); loadServices(); }, 1000);
+  } catch(e) { msg.style.color='#f66'; msg.textContent=e.message; }
 }
 
 // GOVERNANCE
