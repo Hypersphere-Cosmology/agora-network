@@ -218,7 +218,6 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
     <div class="tabs" style="margin-bottom:0; border-bottom:none;">
       <div class="tab active" onclick="showTab('assets')">Assets</div>
-      <div class="tab" onclick="showTab('services')">Services</div>
       <div class="tab" onclick="showTab('market')">Marketplace</div>
       <div class="tab" onclick="showTab('gov')">Governance</div>
       <div class="tab" onclick="showTab('users')">Users</div>
@@ -269,11 +268,6 @@
   <!-- ASSETS PANE -->
   <div id="pane-assets" class="pane active">
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
-  </div>
-
-  <!-- SERVICES PANE -->
-  <div id="pane-services" class="pane">
-    <div id="services-list"><div style="color:#444;padding:32px;text-align:center">Loading...</div></div>
   </div>
 
   <!-- GOVERNANCE PANE -->
@@ -335,7 +329,56 @@
       <div id="bounty-msg" style="font-size:0.82rem;margin-top:10px;"></div>
     </div>
 
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <!-- SERVICES SECTION -->
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="section-title" style="margin:0">Services</div>
+        <div style="display:flex;gap:8px;" id="svc-header-btns">
+          <select id="svc-cat-select" onchange="setSvcFilter(this.value)" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:5px 10px;border-radius:5px;font-size:0.78rem;cursor:pointer;">
+            <option value="all">All categories</option>
+            <option value="compute">compute</option>
+            <option value="storage">storage</option>
+            <option value="data">data</option>
+            <option value="content">content</option>
+            <option value="social">social</option>
+            <option value="attestation">attestation</option>
+            <option value="other">other</option>
+          </select>
+          <button id="list-svc-btn" onclick="toggleNewServiceForm()" style="display:none;background:#7c6af7;color:#fff;border:none;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;">+ List Service</button>
+        </div>
+      </div>
+      <div id="new-svc-form" style="display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:16px;">
+        <h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">List a New Service</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Title *</label>
+          <input type="text" id="ns-title" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>
+          <div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Category *</label>
+          <select id="ns-cat" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">
+          <option>compute</option><option>storage</option><option>data</option><option>content</option><option>social</option><option>attestation</option><option>other</option>
+          </select></div>
+          <div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Price (A) *</label>
+          <input type="number" id="ns-price" min="0.01" step="0.01" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>
+          <div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Unit *</label>
+          <select id="ns-unit" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">
+          <option value="per_call">per_call</option><option value="per_mb">per_mb</option><option value="per_hour">per_hour</option><option value="per_item">per_item</option><option value="flat">flat</option>
+          </select></div>
+        </div>
+        <label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Description *</label>
+        <textarea id="ns-desc" rows="3" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;resize:vertical;font-family:inherit;margin-bottom:8px;" placeholder="What do you offer?"></textarea>
+        <label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Delivery notes</label>
+        <input type="text" id="ns-delivery" placeholder="How will you deliver? Timeline?" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="submitNewService()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.84rem;">List Service</button>
+          <button onclick="toggleNewServiceForm()" style="background:none;border:1px solid #333;color:#666;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:0.84rem;">Cancel</button>
+          <span id="ns-msg" style="font-size:0.8rem;"></span>
+        </div>
+      </div>
+      <div id="services-list"><div style="color:#444;padding:24px;text-align:center">Loading services...</div></div>
+    </div>
+
+    <div style="border-top:1px solid #1e1e1e;margin:4px 0 20px;"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div class="section-title" style="margin:0">Token Market</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;" id="market-btns" style="display:none;">
         <button onclick="toggleBuyTokens()" style="background:#4caf50;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;">$ Buy Tokens</button>
@@ -447,17 +490,15 @@ async function submitAsset() {
 }
 
 function showTab(name) {
-  var tabs = ['assets','services','market','gov','users','profile'];
+  var tabs = ['assets','market','gov','users','profile'];
   document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
   document.getElementById('pane-assets').classList.toggle('active', name==='assets');
   document.getElementById('pane-market').classList.toggle('active', name==='market');
   document.getElementById('pane-users').classList.toggle('active', name==='users');
-  document.getElementById('pane-services').classList.toggle('active', name==='services');
   document.getElementById('pane-gov').classList.toggle('active', name==='gov');
   document.getElementById('pane-profile').classList.toggle('active', name==='profile');
-  if (name === 'market') loadListings();
+  if (name === 'market') { loadListings(); loadServices(); }
   if (name === 'users') loadUsers();
-  if (name === 'services') loadServices();
   if (name === 'gov') loadGov();
   if (name === 'profile') loadProfile();
 }
@@ -626,6 +667,7 @@ async function boot() {
       ' <span style="color:#4caf50;font-size:0.78rem">(≈$' + usdVal + ')</span>';
     document.getElementById('register-box').style.display = 'none';
     document.getElementById('submit-asset-btn').style.display = 'inline-block';
+    var lsb = document.getElementById('list-svc-btn'); if(lsb) lsb.style.display = 'inline-block';
     document.getElementById('market-btns').style.display = 'flex';
     loadAssets();
   } catch(e) {
@@ -777,51 +819,8 @@ async function loadServices() {
     var url = '/services/' + (SVC_FILTER !== 'all' ? '?category=' + SVC_FILTER : '');
     var services = await fetch(url).then(function(r){return r.json();});
 
-    var cats = ['all','compute','storage','data','content','social','attestation','other'];
-    var filterHtml = '<div class="svc-filter-bar">';
-    cats.forEach(function(c){
-      filterHtml += '<div class="svc-filter' + (SVC_FILTER===c?' active':'') + '" onclick="setSvcFilter(\'' + c + '\')">' + c + '</div>';
-    });
-    filterHtml += '</div>';
-
-    if (ME) {
-      filterHtml += '<button onclick="toggleNewServiceForm()" style="background:#7c6af7;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:0.82rem;margin-bottom:16px;">+ List a Service</button>';
-    }
-
-    // New service form
-    filterHtml += '<div id="new-svc-form" style="display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:16px;">' +
-      '<h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">List a New Service</h3>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
-        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Title *</label>' +
-        '<input type="text" id="ns-title" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>' +
-        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Category *</label>' +
-        '<select id="ns-cat" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">' +
-        '<option>compute</option><option>storage</option><option>data</option><option>content</option><option>social</option><option>attestation</option><option>other</option>' +
-        '</select></div>' +
-        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Price (A) *</label>' +
-        '<input type="number" id="ns-price" min="0.01" step="0.01" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;"></div>' +
-        '<div><label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Unit *</label>' +
-        '<select id="ns-unit" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;">' +
-        '<option value="per_call">per_call</option><option value="per_mb">per_mb</option><option value="per_hour">per_hour</option><option value="per_item">per_item</option><option value="flat">flat</option>' +
-        '</select></div>' +
-      '</div>' +
-      '<label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Description *</label>' +
-      '<textarea id="ns-desc" rows="3" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;resize:vertical;font-family:inherit;margin-bottom:8px;" placeholder="What do you offer? What makes it worth paying for?"></textarea>' +
-      '<label style="font-size:0.72rem;color:#555;display:block;margin-bottom:3px;">Delivery notes</label>' +
-      '<input type="text" id="ns-delivery" placeholder="How will you deliver? Timeline?" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:7px 10px;border-radius:5px;font-size:0.84rem;margin-bottom:12px;">' +
-      '<div style="display:flex;gap:8px;align-items:center;">' +
-        '<button onclick="submitNewService()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.84rem;">List Service</button>' +
-        '<button onclick="toggleNewServiceForm()" style="background:none;border:1px solid #333;color:#666;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:0.84rem;">Cancel</button>' +
-        '<span id="ns-msg" style="font-size:0.8rem;"></span>' +
-      '</div></div>';
-
-    if (!services.length) {
-      el.innerHTML = filterHtml + '<div style="color:#444;padding:32px;text-align:center">No services listed yet in this category.</div>';
-      return;
-    }
-
-    el.innerHTML = filterHtml;
-    services.forEach(function(s) {
+    el.innerHTML = '';
+services.forEach(function(s) {
       var isMine = ME && s.provider === ME.handle;
       var catCls = 'cat-' + s.category;
       var card = document.createElement('div');
@@ -854,7 +853,7 @@ async function loadServices() {
   } catch(e) { if(el) el.innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>'; }
 }
 
-function setSvcFilter(cat) { SVC_FILTER = cat; loadServices(); }
+function setSvcFilter(cat) { SVC_FILTER = cat; var sel = document.getElementById('svc-cat-select'); if(sel) sel.value = cat; loadServices(); }
 function toggleOrderForm(sid) {
   var f = document.getElementById('order-form-' + sid);
   if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
