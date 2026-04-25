@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from db import init_db, get_db, User, Asset
 from ratelimit import limiter, rate_limit_exceeded_handler
 
-from routers import users, assets, marketplace, governance, bank, sim, notifications, info, proxy
+from routers import users, assets, marketplace, governance, bank, sim, notifications, info, proxy, comments
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ app.include_router(sim.router)
 app.include_router(notifications.router)
 app.include_router(info.router)
 app.include_router(proxy.router)
+app.include_router(comments.router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)

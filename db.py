@@ -233,3 +233,17 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    thread_type = Column(String, nullable=False)   # 'asset' or 'bounty'
+    thread_id = Column(Integer, nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(DateTime, default=utcnow)
+    is_deleted = Column(Boolean, default=False)
+
+    author = relationship("User")

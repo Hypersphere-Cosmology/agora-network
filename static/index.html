@@ -57,6 +57,18 @@
     #modal .meta { font-size: 0.78rem; color: #555; margin-bottom: 18px; }
     #modal .content-box { font-size: 0.9rem; color: #ccc; line-height: 1.75; white-space: pre-wrap; background: #111; border-radius: 8px; padding: 18px; margin-bottom: 22px; border: 1px solid #222; }
     #modal .content-box a { color: #7c6af7; }
+    .comment-thread { margin-top:20px; border-top:1px solid #252525; padding-top:16px; }
+    .comment-thread h4 { font-size:0.78rem; color:#555; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+    .comment-item { padding:10px 0; border-bottom:1px solid #1a1a1a; }
+    .comment-item:last-of-type { border-bottom:none; }
+    .comment-author { font-size:0.78rem; color:#7c6af7; font-weight:600; margin-bottom:3px; }
+    .comment-body { font-size:0.84rem; color:#ccc; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+    .comment-time { font-size:0.7rem; color:#444; margin-top:3px; }
+    .comment-compose { display:flex; gap:8px; margin-top:12px; }
+    .comment-compose textarea { flex:1; background:#111; border:1px solid #2a2a2a; color:#e0e0e0; padding:8px 10px; border-radius:6px; font-size:0.84rem; resize:none; font-family:inherit; line-height:1.4; }
+    .comment-compose textarea:focus { outline:none; border-color:#7c6af7; }
+    .comment-compose button { background:#7c6af7; color:#fff; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:0.82rem; align-self:flex-end; white-space:nowrap; }
+    .no-comments { font-size:0.82rem; color:#444; font-style:italic; margin-bottom:10px; }
     #rate-section h4 { font-size: 0.85rem; color: #888; margin-bottom: 12px; border-top: 1px solid #222; padding-top: 18px; }
     .stars { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
     .star { width: 38px; height: 38px; background: #2a2a2a; border: 1px solid #333; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.85rem; color: #888; transition: all 0.1s; user-select: none; }
@@ -246,6 +258,14 @@
       <div class="stars" id="m-stars"></div>
       <button id="submit-btn" style="display:none" onclick="submitRating()">Submit Rating</button>
       <div id="rating-msg"></div>
+    </div>
+    <div class="comment-thread" id="m-comments">
+      <h4>Discussion</h4>
+      <div id="m-comment-list"><span class="no-comments">No comments yet.</span></div>
+      <div class="comment-compose" id="m-compose" style="display:none;">
+        <textarea id="m-comment-input" rows="2" placeholder="Add to the discussion..."></textarea>
+        <button onclick="submitComment()">Post</button>
+      </div>
     </div>
   </div>
 </div>
@@ -525,6 +545,7 @@ async function openAsset(id) {
     }
   }
   document.getElementById('modal-overlay').classList.add('open');
+  loadComments('asset', id);
 }
 
 function selectScore(n) {
@@ -546,6 +567,46 @@ async function submitRating() {
     document.getElementById('rating-msg').style.color = '#f66';
     document.getElementById('rating-msg').textContent = e.message;
   }
+}
+
+// COMMENTS
+var COMMENT_THREAD_TYPE = 'asset';
+var COMMENT_THREAD_ID = null;
+
+async function loadComments(threadType, threadId) {
+  COMMENT_THREAD_TYPE = threadType;
+  COMMENT_THREAD_ID = threadId;
+  var el = document.getElementById('m-comment-list');
+  if (!el) return;
+  try {
+    var comments = await fetch('/comments/' + threadType + '/' + threadId).then(function(r){return r.json();});
+    if (!comments.length) {
+      el.innerHTML = '<span class="no-comments">No comments yet — start the discussion.</span>';
+    } else {
+      el.innerHTML = '';
+      comments.forEach(function(c) {
+        var div = document.createElement('div');
+        div.className = 'comment-item';
+        var ts = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+        div.innerHTML = '<div class="comment-author">@' + esc(c.author) + '</div>' +
+          '<div class="comment-body">' + esc(c.content) + '</div>' +
+          '<div class="comment-time">' + ts + '</div>';
+        el.appendChild(div);
+      });
+    }
+    document.getElementById('m-compose').style.display = ME ? 'flex' : 'none';
+  } catch(e) { el.innerHTML = '<span class="no-comments">Could not load comments.</span>'; }
+}
+
+async function submitComment() {
+  var input = document.getElementById('m-comment-input');
+  var content = input.value.trim();
+  if (!content) return;
+  try {
+    await api('/comments/' + COMMENT_THREAD_TYPE + '/' + COMMENT_THREAD_ID, 'POST', {content: content});
+    input.value = '';
+    loadComments(COMMENT_THREAD_TYPE, COMMENT_THREAD_ID);
+  } catch(e) { alert(e.message); }
 }
 
 // MARKETPLACE
@@ -616,12 +677,56 @@ async function loadListings() {
         '<div id="bounty-msg-' + b.bounty_id + '" class="trade-msg"></div>' +
         '</div>' +
         '<div style="display:flex;gap:12px;align-items:center">' +
+        '<button onclick="toggleBountyThread(' + b.bounty_id + ')" style="background:none;border:1px solid #333;color:#666;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;">💬 Discuss</button>' +
         '<span class="price-tag">' + Number(b.amount).toFixed(4) + ' A</span>' +
         (!isMine ? '<button class="buy-btn" onclick="claimBounty(' + b.bounty_id + ')">Claim</button>' : '') +
         '</div>';
+      // Inline thread panel
+      var thread = document.createElement('div');
+      thread.id = 'bounty-thread-' + b.bounty_id;
+      thread.style.cssText = 'display:none;border-top:1px solid #222;margin-top:12px;padding-top:12px;';
+      thread.innerHTML = '<div id="bounty-comments-' + b.bounty_id + '" style="margin-bottom:10px;"></div>' +
+        (ME ? '<div class="comment-compose"><textarea id="bounty-input-' + b.bounty_id + '" rows="2" placeholder="Discuss this bounty..."></textarea>' +
+        '<button onclick="submitBountyComment(' + b.bounty_id + ')">Post</button></div>' : '');
+      div.appendChild(thread);
       el.appendChild(div);
     });
   } catch(e) { console.error('loadListings', e); }
+}
+
+async function toggleBountyThread(bid) {
+  var panel = document.getElementById('bounty-thread-' + bid);
+  if (!panel) return;
+  var open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  if (!open) {
+    var el = document.getElementById('bounty-comments-' + bid);
+    try {
+      var comments = await fetch('/comments/bounty/' + bid).then(function(r){return r.json();});
+      if (!comments.length) { el.innerHTML = '<span class="no-comments">No comments yet.</span>'; }
+      else {
+        el.innerHTML = '';
+        comments.forEach(function(c) {
+          var ts = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+          el.innerHTML += '<div class="comment-item"><div class="comment-author">@' + esc(c.author) + '</div>' +
+            '<div class="comment-body">' + esc(c.content) + '</div>' +
+            '<div class="comment-time">' + ts + '</div></div>';
+        });
+      }
+    } catch(e) { el.innerHTML = '<span class="no-comments">Could not load.</span>'; }
+  }
+}
+
+async function submitBountyComment(bid) {
+  var input = document.getElementById('bounty-input-' + bid);
+  var content = input ? input.value.trim() : '';
+  if (!content) return;
+  try {
+    await api('/comments/bounty/' + bid, 'POST', {content: content});
+    input.value = '';
+    toggleBountyThread(bid); // close
+    toggleBountyThread(bid); // reopen to refresh
+  } catch(e) { alert(e.message); }
 }
 
 async function claimBounty(bid) {
