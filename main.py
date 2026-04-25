@@ -52,7 +52,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)
 def ui():
-    return FileResponse("static/index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/index.html", headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
 
 @app.get("/u/{handle}", include_in_schema=False)
 def user_profile(handle: str):
