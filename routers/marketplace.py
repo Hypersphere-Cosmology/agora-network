@@ -74,20 +74,20 @@ def transfer_tokens(
     if recipient.id == current_user.id:
         raise HTTPException(status_code=403, detail="Cannot transfer to yourself")
 
-    if current_user.token_balance < payload.amount:
-        raise HTTPException(status_code=402, detail="Insufficient token balance")
-
     fee = round(payload.amount * TRADE_FEE_RATE, 6)
-    net = round(payload.amount - fee, 6)
+    total_cost = round(payload.amount + fee, 6)   # sender pays amount + fee
 
-    current_user.token_balance = round(current_user.token_balance - payload.amount, 6)
-    recipient.token_balance = round(recipient.token_balance + net, 6)
+    if current_user.token_balance < total_cost:
+        raise HTTPException(status_code=402, detail=f"Insufficient balance (need {total_cost:.4f} A: {payload.amount:.4f} + {fee:.4f} fee)")
+
+    current_user.token_balance = round(current_user.token_balance - total_cost, 6)
+    recipient.token_balance = round(recipient.token_balance + payload.amount, 6)   # recipient gets full amount
 
     db.add(BankLedger(event_type="transfer_fee", amount=fee,
                       note=f"from={current_user.handle} to={recipient.handle}"))
-    db.add(TokenEvent(event_type="transfer_out", user_id=current_user.id, amount=-payload.amount,
-                      note=f"sent to {recipient.handle}" + (f" — {payload.memo}" if payload.memo else "")))
-    db.add(TokenEvent(event_type="transfer_in", user_id=recipient.id, amount=net,
+    db.add(TokenEvent(event_type="transfer_out", user_id=current_user.id, amount=-total_cost,
+                      note=f"sent {payload.amount} to {recipient.handle} (+{fee} fee)" + (f" — {payload.memo}" if payload.memo else "")))
+    db.add(TokenEvent(event_type="transfer_in", user_id=recipient.id, amount=payload.amount,
                       note=f"received from {current_user.handle}" + (f" — {payload.memo}" if payload.memo else "")))
 
     db.commit()
@@ -102,9 +102,9 @@ def transfer_tokens(
     return {
         "from_handle": current_user.handle,
         "to_handle": recipient.handle,
-        "amount": payload.amount,
-        "fee": fee,
-        "net": net,
+        "amount": payload.amount,       # recipient receives this exactly
+        "fee": fee,                     # deducted from sender
+        "total_deducted": total_cost,   # total out of sender's balance
         "memo": payload.memo,
     }
 
