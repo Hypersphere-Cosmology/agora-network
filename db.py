@@ -294,3 +294,27 @@ class ServiceOrder(Base):
 
     service = relationship("Service")
     buyer = relationship("User", foreign_keys=[buyer_id])
+
+
+class AssetFile(Base):
+    __tablename__ = "asset_files"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    filename = Column(String, nullable=False)
+    mime_type = Column(String, nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    storage_path = Column(String, nullable=False)
+    created_at = Column(DateTime, default=utcnow)
+
+    uploader = relationship("User")
+
+
+class StorageConfig(Base):
+    __tablename__ = "storage_config"
+
+    key = Column(String, primary_key=True)
+    value_int = Column(Integer, nullable=True)
+    value_text = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=utcnow)
