@@ -95,7 +95,7 @@ def transfer_tokens(
 
     memo_str = payload.memo or ""
     notify(db, recipient.id, "token_received",
-           f"{current_user.handle} sent you {net:.4f} tokens"
+           f"{current_user.handle} sent you {payload.amount:.4f} tokens"
            + (f' — "{memo_str}"' if memo_str else "") + ".")
     db.commit()
 
