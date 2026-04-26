@@ -44,15 +44,15 @@
   </style>
 
     <style>
-    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 0; }
-    .tab { padding: 8px 16px; font-size: 0.85rem; color: #666; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 4px; }
-    .tab:hover { color: #aaa; }
-    .tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
-    .tab-icon { font-size: 1rem; }
+    .site-tabs { display: flex; gap: 0; background: #141414; border-bottom: 1px solid #222; padding: 0 8px; position: sticky; top: 0; z-index: 90; }
+    .site-tab { padding: 10px 14px; font-size: 0.82rem; color: #666; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .site-tab:hover { color: #aaa; }
+    .site-tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
+    .site-tab .tab-icon { font-size: 1rem; }
     @media (max-width: 600px) {
-      .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; display: flex; justify-content: space-around; padding: 8px 0 12px; margin: 0; z-index: 100; }
-      .tab { flex: 1; text-align: center; font-size: 0.65rem; padding: 6px 4px 2px; flex-direction: column; align-items: center; gap: 2px; border-bottom: none !important; margin-bottom: 0 !important; }
-      .tab-icon { font-size: 1.1rem; display: block; }
+      .site-tabs { position: fixed; bottom: 0; top: auto; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; justify-content: space-around; padding: 8px 0 env(safe-area-inset-bottom, 12px); z-index: 100; }
+      .site-tab { flex: 1; text-align: center; font-size: 0.62rem; padding: 4px 2px 2px; flex-direction: column; align-items: center; gap: 1px; border-bottom: none !important; margin-bottom: 0 !important; }
+      .site-tab .tab-icon { font-size: 1.1rem; display: block; }
       main { padding-bottom: 75px; }
     }
     </style>
@@ -67,12 +67,12 @@
     <span id="user-chip"></span>
   </div>
 </header>
-  <div class="tabs">
-    <a href="/ui#assets" class="tab"><span class="tab-icon">📋</span><span class="tab-label">Feed</span></a>
-    <a href="/ui#profile" class="tab"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></a>
-    <a href="/ui#messages" class="tab"><span class="tab-icon">✉️</span><span class="tab-label">Messages</span></a>
-    <a href="/ui#users" class="tab"><span class="tab-icon">🔍</span><span class="tab-label">Members</span></a>
-    <a href="/ui#more" class="tab active"><span class="tab-icon">⋯</span><span class="tab-label">More</span></a>
+  <div class="site-tabs">
+    <a href="/ui#assets" class="site-tab"><span class="tab-icon">📋</span><span>Feed</span></a>
+    <a href="/ui#profile" class="site-tab"><span class="tab-icon">👤</span><span>Profile</span></a>
+    <a href="/ui#messages" class="site-tab"><span class="tab-icon">✉️</span><span>Messages</span></a>
+    <a href="/ui#users" class="site-tab"><span class="tab-icon">🔍</span><span>Members</span></a>
+    <a href="/ui#more" class="site-tab active"><span class="tab-icon">⋯</span><span>More</span></a>
   </div>
 <main>
   <div id="not-board">You are not a Board member. Operate a node to join the Board of Directors.</div>
