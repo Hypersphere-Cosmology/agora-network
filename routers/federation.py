@@ -38,6 +38,18 @@ NODE_1_INFO = {
 # Node registry — persisted to JSON
 NODE_REGISTRY_FILE = Path(__file__).parent.parent / "node-registry.json"
 
+# Nodes that have opted out of browser routing via /any
+# Set "no_route": true in node-registry.json entry, or add public_url here
+def get_no_route_peers() -> set:
+    reg = load_registry()
+    return {
+        node["public_url"]
+        for node in reg.get("nodes", {}).values()
+        if node.get("no_route", False)
+    }
+
+NO_ROUTE_PEERS: set = set()  # populated lazily in any_redirect
+
 
 def load_registry() -> dict:
     if NODE_REGISTRY_FILE.exists():
@@ -470,9 +482,14 @@ async def any_redirect(ref: str = None):
             except Exception:
                 pass
 
-    # Always serve from self — peers join the rotation only when on independent IPs/ISPs
-    # (routing to a peer on the same ISP/router causes firewall issues for external users)
-    live_url = ""  # relative = self
+    # Filter out peers that have opted out of browser routing
+    no_route = get_no_route_peers()
+    live_peers = [u for u in live_peers if u not in no_route]
+
+    if live_peers:
+        live_url = random.choice(live_peers)
+    else:
+        live_url = ""  # fall back to self (relative)
 
     if ref:
         target = f"{live_url}/join?ref={ref}" if live_url else f"/join?ref={ref}"
