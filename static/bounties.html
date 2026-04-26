@@ -64,6 +64,10 @@
       main { padding-bottom: 75px; }
     }
     </style>
+  <style>
+    .status-bar-mini { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:10px 18px; margin-bottom:16px; display:flex; gap:20px; font-size:0.82rem; color:#aaa; flex-wrap:wrap; }
+    .status-bar-mini strong { color:#e0e0e0; }
+  </style>
 </head>
 <body>
 <header>
@@ -77,6 +81,18 @@
     <a href="/ui#users" class="site-tab"><span class="tab-icon">🔍</span><span>Members</span></a>
     <a href="/ui#more" class="site-tab active"><span class="tab-icon">⋯</span><span>More</span></a>
   </div>
+  <div class="status-bar-mini">
+    <span>Users: <strong id="s-users">—</strong></span>
+    <span>Assets: <strong id="s-assets">—</strong></span>
+    <span><strong id="s-rate" style="color:#4caf50">—</strong>/A</span>
+  </div>
+  <script>
+  fetch('/status').then(function(r){return r.json();}).then(function(s){
+    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
+    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
+    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
+  }).catch(function(){});
+  </script>
 <main>
   <div class="page-title">Open Bounties</div>
   <p class="page-sub">Token rewards posted by Agora participants. Claim a bounty by joining the network and posting to the claim endpoint. One HTTP call to join — no account required upfront.</p>
