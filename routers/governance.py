@@ -23,9 +23,11 @@ FOUNDER_SUNSET_THRESHOLD = 100  # founders lose special close power at 100 users
 
 
 def founders_active(db: Session) -> bool:
-    """Returns True if founder power is still active (< 100 users)."""
-    user_count = db.query(User).count()
-    return user_count < FOUNDER_SUNSET_THRESHOLD
+    """Returns True if founder power is still active.
+    Threshold is ELIGIBLE voters (score >= MIN_SCORE_TO_VOTE) not total users.
+    Zero-score accounts cannot trigger founder sunset — only earned participants count."""
+    eligible_count = db.query(User).filter(User.total_score >= MIN_SCORE_TO_VOTE).count()
+    return eligible_count < FOUNDER_SUNSET_THRESHOLD
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 
@@ -413,6 +415,7 @@ def get_parameters(db: Session = Depends(get_db)):
         return float(row.value_text) if row and row.value_text else default
 
     user_count = db.query(User).count()
+    eligible_count = db.query(User).filter(User.total_score >= MIN_SCORE_TO_VOTE).count()
 
     # Trade fee rate lives in config.py (in-memory), not StorageConfig
     trade_fee = _config.get_fee_rate()
@@ -521,7 +524,9 @@ def get_parameters(db: Session = Depends(get_db)):
         ],
         "founders_active": founders_active(db),
         "user_count": user_count,
-        "users_until_sunset": max(0, FOUNDER_SUNSET_THRESHOLD - user_count)
+        "users_until_sunset": max(0, FOUNDER_SUNSET_THRESHOLD - eligible_count),
+        "eligible_user_count": eligible_count,
+        "total_user_count": user_count
     }
 
 
