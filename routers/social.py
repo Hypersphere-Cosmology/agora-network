@@ -414,3 +414,72 @@ def relay_dm(body: RelayDMBody, db: Session = Depends(get_db)):
     db.commit()
 
     return {"ok": True, "stored": True}
+
+
+# ── Feedback / Complaints ─────────────────────────────────────────────────────
+
+class FeedbackBody(BaseModel):
+    subject: str
+    content: str
+    category: str = "general"  # general | bug | complaint | suggestion
+
+@router.post("/feedback")
+def submit_feedback(body: FeedbackBody, request: Request, db: Session = Depends(get_db)):
+    """Submit feedback, bug report, or complaint. No auth required — handle optional."""
+    from db import Feedback
+    if len(body.subject) > 200:
+        raise HTTPException(status_code=400, detail="Subject too long (max 200 chars)")
+    if len(body.content) > 5000:
+        raise HTTPException(status_code=400, detail="Content too long (max 5000 chars)")
+
+    # Try to identify user from API key if provided
+    handle = None
+    api_key_header = request.headers.get("X-API-Key")
+    if api_key_header:
+        try:
+            from auth import get_current_user_from_key
+            user = get_current_user_from_key(api_key_header, db)
+            if user:
+                handle = user.handle
+        except Exception:
+            pass
+
+    fb = Feedback(
+        handle=handle,
+        category=body.category,
+        subject=body.subject,
+        content=body.content,
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+
+    # Notify ava via DM from system
+    try:
+        ava = db.query(User).filter(User.handle == "ava").first()
+        if ava:
+            dm = DirectMessage(
+                sender_id=ava.id,
+                recipient_handle="ava",
+                content=f"📬 New {body.category} from {handle or 'anonymous'}: {body.subject}\n\n{body.content[:500]}",
+                thread_id=f"feedback_{fb.id}",
+                is_read=False,
+            )
+            db.add(dm)
+            db.commit()
+    except Exception:
+        pass
+
+    return {"ok": True, "feedback_id": fb.id, "message": "Thank you. The network operator will review your feedback."}
+
+
+@router.get("/feedback")
+def list_feedback(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """List feedback — board members only."""
+    from routers.committees import get_board_members
+    from db import Feedback
+    board = get_board_members()
+    if current_user.handle not in board:
+        raise HTTPException(status_code=403, detail="Board members only")
+    items = db.query(Feedback).order_by(Feedback.submitted_at.desc()).limit(50).all()
+    return {"feedback": [{"id": f.id, "handle": f.handle, "category": f.category, "subject": f.subject, "content": f.content, "status": f.status, "submitted_at": f.submitted_at.isoformat()} for f in items]}

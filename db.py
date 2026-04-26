@@ -473,6 +473,19 @@ class DeviceFingerprint(Base):
     user = relationship("User")
 
 
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+    id = Column(Integer, primary_key=True)
+    handle = Column(String, nullable=True)
+    category = Column(String, default="general")
+    subject = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    submitted_at = Column(DateTime, default=utcnow)
+    status = Column(String, default="open")
+    resolved_by = Column(String, nullable=True)
+    resolution = Column(Text, nullable=True)
+
 class ShardMap(Base):
     __tablename__ = "shard_map"
 

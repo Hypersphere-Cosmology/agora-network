@@ -1948,11 +1948,22 @@ async function getDeviceFingerprint() {
 
   // Hash it
   const raw = components.join('|');
-  const encoder = new TextEncoder();
-  const data = encoder.encode(raw);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(raw);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch(e) {
+    // Fallback for non-HTTPS (crypto.subtle unavailable)
+    var hash = 0;
+    for (var i = 0; i < raw.length; i++) {
+      var chr = raw.charCodeAt(i);
+      hash = ((hash << 5) - hash) + chr;
+      hash |= 0;
+    }
+    return 'fp_' + Math.abs(hash).toString(16);
+  }
 }
 
 async function register() {
@@ -2216,6 +2227,51 @@ function copyRefLink(url) {
       }
     }).catch(function(){});
 })();
+
+function openFeedback() {
+  var existing = document.getElementById('feedback-modal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'feedback-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:300;';
+  modal.innerHTML = '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:24px;width:90%;max-width:480px;">' +
+    '<h3 style="color:#fff;font-size:0.95rem;margin-bottom:16px;">📬 Report an Issue</h3>' +
+    '<select id="fb-cat" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;margin-bottom:10px;">' +
+    '<option value="bug">🐛 Bug Report</option>' +
+    '<option value="complaint">⚠️ Complaint</option>' +
+    '<option value="suggestion">💡 Suggestion</option>' +
+    '<option value="general">💬 General Feedback</option>' +
+    '</select>' +
+    '<input type="text" id="fb-subject" placeholder="Subject..." style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;margin-bottom:10px;box-sizing:border-box;">' +
+    '<textarea id="fb-content" placeholder="Describe the issue..." style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:100px;resize:vertical;box-sizing:border-box;margin-bottom:10px;"></textarea>' +
+    '<div style="display:flex;gap:8px;">' +
+    '<button onclick="submitFeedback()" style="flex:1;background:#7c6af7;color:#fff;border:none;padding:10px;border-radius:6px;cursor:pointer;">Submit</button>' +
+    '<button onclick="document.getElementById(\'feedback-modal\').remove()" style="background:#2a2a2a;color:#888;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Cancel</button>' +
+    '</div>' +
+    '<div id="fb-msg" style="margin-top:8px;font-size:0.8rem;color:#888;"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+async function submitFeedback() {
+  var cat = document.getElementById('fb-cat').value;
+  var subject = document.getElementById('fb-subject').value.trim();
+  var content = document.getElementById('fb-content').value.trim();
+  var msg = document.getElementById('fb-msg');
+  if (!subject || !content) { msg.textContent = 'Please fill in subject and description.'; return; }
+  try {
+    var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
+    if (KEY) opts.headers['X-API-Key'] = KEY;
+    opts.body = JSON.stringify({category: cat, subject: subject, content: content});
+    var r = await fetch('/feedback', opts);
+    var d = await r.json();
+    if (d.ok) {
+      msg.style.color = '#4caf50';
+      msg.textContent = '✅ ' + d.message;
+      setTimeout(function(){ document.getElementById('feedback-modal').remove(); }, 2000);
+    } else { msg.style.color = '#f66'; msg.textContent = d.detail || 'Failed'; }
+  } catch(e) { msg.style.color = '#f66'; msg.textContent = 'Error: ' + e.message; }
+}
 </script>
 </body>
 </html>
