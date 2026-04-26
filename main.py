@@ -171,6 +171,11 @@ def root():
     }
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "agora", "version": "0.1.0"}
+
+
 @app.get("/status")
 def status(db: Session = Depends(get_db)):
     from db import Asset, Trade, BankLedger, StorageConfig
@@ -194,3 +199,9 @@ def status(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=False)
+
+@app.get("/download/node-package", include_in_schema=False)
+def download_node():
+    return FileResponse("static/agora-node.tar.gz", 
+                        media_type="application/gzip",
+                        filename="agora-node.tar.gz")
