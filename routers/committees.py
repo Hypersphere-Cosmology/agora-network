@@ -181,7 +181,7 @@ def get_committee(slug: str, db: Session = Depends(get_db)):
             "review_threshold": m.review_threshold or 100,
             "last_reviewed_at": m.last_reviewed_at.isoformat() if m.last_reviewed_at else None,
         } for m in members],
-        "recent_actions": [{"id": a.id, "title": a.title, "type": a.action_type, "status": a.status, "created_at": a.created_at.isoformat()} for a in actions],
+        "recent_actions": [{"id": a.id, "title": a.title, "description": a.description, "type": a.action_type, "status": a.status, "proposed_by": a.proposed_by, "votes_for": a.board_votes_for, "votes_against": a.board_votes_against, "required": a.board_required, "created_at": a.created_at.isoformat()} for a in actions],
         "board": get_board_members(),
     }
 

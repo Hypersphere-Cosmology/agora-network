@@ -139,16 +139,25 @@ async function loadPendingActions() {
       pendingEl.innerHTML = '<div style="color:#444;font-size:0.82rem;padding:16px 0;">No pending votes.</div>';
     } else {
       pendingEl.innerHTML = pending.map(function(a) {
+        var threshold = a.required || (BOARD.length * 0.7);
+        var pct = threshold > 0 ? Math.round((a.votes_for || 0) / threshold * 100) : 0;
         return '<div class="action-card">' +
-          '<div style="display:flex;justify-content:space-between;align-items:start;">' +
-          '<div><div class="action-title">' + esc(a.title) + '</div>' +
-          '<div class="action-meta">' + esc(a.committee) + ' · proposed ' + new Date(a.created_at).toLocaleDateString() + '</div></div>' +
-          '<span class="status-badge s-pending">Pending</span></div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">' +
+          '<div style="flex:1;min-width:0;">' +
+          '<div class="action-title">' + esc(a.title) + '</div>' +
+          '<div class="action-meta">' + esc(a.committee) + ' · ' + esc(a.type||'') + ' · proposed by @' + esc(a.proposed_by||'') + ' · ' + new Date(a.created_at).toLocaleDateString() + '</div>' +
+          '</div>' +
+          '<span class="status-badge s-pending" style="flex-shrink:0;margin-left:10px;">Pending</span></div>' +
+          (a.description ? '<div style="font-size:0.82rem;color:#888;line-height:1.55;background:#111;border-radius:6px;padding:10px 12px;margin-bottom:10px;">' + esc(a.description) + '</div>' : '') +
+          '<div style="font-size:0.75rem;color:#555;margin-bottom:8px;">Yes: ' + (a.votes_for||0) + ' · No/Abstain: ' + (a.votes_against||0) + ' · Need ' + threshold.toFixed(1) + ' yes votes to pass</div>' +
+          '<div class="progress-bar" style="margin-bottom:10px;"><div class="progress-fill" style="width:' + Math.min(100,pct) + '%;background:' + (pct>=100?'#4caf50':'#7c6af7') + '"></div></div>' +
           '<div class="vote-bar">' +
           '<button class="vote-btn vote-yes" onclick="castVote(' + a.id + ',\'yes\')">✓ Approve</button>' +
           '<button class="vote-btn vote-no" onclick="castVote(' + a.id + ',\'no\')">✗ Reject</button>' +
           '<button class="vote-btn vote-abstain" onclick="castVote(' + a.id + ',\'abstain\')">— Abstain</button>' +
-          '</div></div>';
+          '</div>' +
+          '<div id="vote-msg-' + a.id + '" style="font-size:0.78rem;color:#888;margin-top:6px;"></div>' +
+          '</div>';
       }).join('');
     }
 
@@ -172,12 +181,22 @@ async function loadPendingActions() {
 }
 
 async function castVote(actionId, vote) {
-  var reason = vote === 'abstain' ? null : prompt('Reason (optional):');
+  var reason = null;
+  if (vote !== 'abstain') {
+    reason = prompt('Reason (optional, press OK to skip):');
+    if (reason === null) return; // cancelled
+  }
+  var msgEl = document.getElementById('vote-msg-' + actionId);
+  if (msgEl) { msgEl.style.color='#888'; msgEl.textContent='Submitting...'; }
   try {
-    var r = await api('/committees/actions/' + actionId + '/vote', 'POST', {vote: vote, reason: reason});
-    alert('Vote cast: ' + vote + '\nStatus: ' + r.status + '\nFor: ' + r.votes_for + ' / Against: ' + r.votes_against + ' / Required: ' + r.required);
-    loadPendingActions();
-  } catch(e) { alert('Error: ' + e.message); }
+    var r = await api('/committees/actions/' + actionId + '/vote', 'POST', {vote: vote, reason: reason||null});
+    var statusMsg = 'Vote cast: ' + vote.toUpperCase() + ' · Yes: ' + r.yes_votes + ' · No: ' + r.no_votes + ' · Abstain: ' + r.abstain_votes + ' · Status: ' + r.status;
+    if (msgEl) { msgEl.style.color = r.status === 'approved' ? '#4caf50' : r.status === 'rejected' ? '#f66' : '#888'; msgEl.textContent = statusMsg; }
+    setTimeout(loadPendingActions, 1200);
+  } catch(e) {
+    if (msgEl) { msgEl.style.color='#f66'; msgEl.textContent='Error: ' + e.message; }
+    else alert('Error: ' + e.message);
+  }
 }
 
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
