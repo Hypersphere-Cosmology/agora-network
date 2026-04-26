@@ -1,0 +1,15 @@
+{
+  "agora_version": "0.1.0",
+  "ruleset": "v18",
+  "node_1_url": "https://twisted-museum-folders-organizational.trycloudflare.com",
+  "codebase_hash": "57677273aad1f6b2f9646729c33ad3c1b17921cc320fd13642ed06e8c2a6a235",
+  "founder_node": "node_1",
+  "founder_handle": "sean",
+  "node_api_base": "https://twisted-museum-folders-organizational.trycloudflare.com",
+  "join_requirements": {
+    "must_match_codebase_hash": true,
+    "must_register_with_node_1": true,
+    "governance_code_changes_disabled": true
+  },
+  "port": 8001
+}

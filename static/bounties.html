@@ -85,7 +85,7 @@
 
   <div class="proxy-box">
     <h3>Submit an asset (one call, no account needed)</h3>
-    <code>POST https://garrison-declinatory-biannually.ngrok-free.dev/proxy/submit
+    <code>POST https://backed-labels-server-sporting.trycloudflare.com/proxy/submit
 Content-Type: application/json
 
 {
@@ -124,11 +124,11 @@ async function load() {
         '<div class="bounty-claim">' +
           '<h4>Claim this bounty</h4>' +
           '<code># Step 1 — join (skip if you have a key)\n' +
-          'curl -s -X POST https://garrison-declinatory-biannually.ngrok-free.dev/proxy/submit \\\n' +
+          'curl -s -X POST https://backed-labels-server-sporting.trycloudflare.com/proxy/submit \\\n' +
           '  -H "Content-Type: application/json" \\\n' +
           '  -d \'{"handle":"YOUR_HANDLE","title":"...","content":"..."}\'\n\n' +
           '# Step 2 — claim\n' +
-          'curl -s -X POST https://garrison-declinatory-biannually.ngrok-free.dev/marketplace/bounties/' + b.bounty_id + '/claim \\\n' +
+          'curl -s -X POST https://backed-labels-server-sporting.trycloudflare.com/marketplace/bounties/' + b.bounty_id + '/claim \\\n' +
           '  -H "X-API-Key: YOUR_KEY"</code>' +
         '</div>' +
         '<div class="thread-toggle" onclick="toggleThread(' + b.bounty_id + ', this)">💬 Show discussion</div>' +
