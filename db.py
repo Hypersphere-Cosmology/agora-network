@@ -296,6 +296,62 @@ def init_db():
     except Exception as _e:
         print(f"[init_db] score recalc skipped: {_e}")
 
+    # Seed founding committees
+    db = SessionLocal()
+    try:
+        if db.query(Committee).count() == 0:
+            from datetime import datetime, timezone, timedelta
+            committees = [
+                Committee(
+                    name="Audit Committee",
+                    slug="audit",
+                    description="Monitors governance health, vote integrity, committee performance, and network bloat. Reviews all other committees. Audited directly by the Board.",
+                    domain="governance,audit,integrity",
+                    created_by="viralsatan",
+                    charter="The Audit Committee has read access to all governance actions, committee records, and network parameters. It may issue findings and recommendations. It cannot execute changes — only flag and escalate to the Board. All other committees are reviewed by Audit at each term renewal."
+                ),
+                Committee(
+                    name="Asset Curation Committee",
+                    slug="curation",
+                    description="Manages tag taxonomy, reviews flagged assets, maintains feed quality standards.",
+                    domain="assets,tags,quality",
+                    created_by="viralsatan",
+                    charter="The Asset Curation Committee defines and maintains the canonical tag list. It may recommend asset removal to the Board (which votes to execute). It may update tag definitions. It may create and retire tags by internal vote, subject to Board ratification."
+                ),
+                Committee(
+                    name="Economics Committee",
+                    slug="economics",
+                    description="Proposes fee rates, token parameters, referral rates, and economic policy for Board vote.",
+                    domain="fees,tokens,referrals,economy",
+                    created_by="viralsatan",
+                    charter="The Economics Committee may propose changes to any governance-adjustable economic parameter (fee rate, referral rates, token rate, score dimensions). Proposals go to Board vote, not full network vote, unless the change affects score weights — those require full network vote."
+                ),
+                Committee(
+                    name="Security Committee",
+                    slug="security",
+                    description="Reviews threat vectors, sybil incidents, vulnerability disclosures, and protective governance actions.",
+                    domain="security,sybil,vulnerabilities",
+                    created_by="viralsatan",
+                    charter="The Security Committee may propose emergency governance actions (e.g. user removal, parameter lockdown) to the Board for expedited vote. It reviews new registration mechanisms, fingerprinting, and anti-sybil measures. Security incidents are logged as committee actions."
+                ),
+            ]
+            for c in committees:
+                db.add(c)
+            db.flush()
+
+            # Appoint ava as head of all 4 committees (founder appointment)
+            for c in committees:
+                db.add(CommitteeMember(
+                    committee_id=c.id,
+                    user_handle="ava",
+                    role="head",
+                    approved_by="viralsatan",
+                ))
+            db.commit()
+            print("✅ Founding committees seeded")
+    finally:
+        db.close()
+
 
 def get_db():
     db = SessionLocal()
@@ -398,6 +454,68 @@ class ShardMap(Base):
     asset_content_hash = Column(String, index=True)   # the asset's content_hash
     responsible_node_ids = Column(String)               # JSON array of node_ids
     updated_at = Column(DateTime, default=utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Committee governance models
+# ---------------------------------------------------------------------------
+
+class Committee(Base):
+    __tablename__ = "committees"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)          # e.g. "Audit Committee"
+    slug = Column(String, unique=True, nullable=False)          # e.g. "audit"
+    description = Column(Text, nullable=True)
+    domain = Column(String, nullable=True)                       # what this committee governs
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=utcnow)
+    created_by = Column(String, nullable=False)                  # founder handle
+    charter = Column(Text, nullable=True)                        # governance charter text
+
+
+class CommitteeMember(Base):
+    __tablename__ = "committee_members"
+
+    id = Column(Integer, primary_key=True)
+    committee_id = Column(Integer, ForeignKey("committees.id"), nullable=False)
+    user_handle = Column(String, nullable=False)
+    role = Column(String, default="member")                      # "head" | "member"
+    approved_by = Column(String, nullable=True)                  # handle of approving board member
+    joined_at = Column(DateTime, default=utcnow)
+    term_ends_at = Column(DateTime, nullable=True)               # NULL = no term set yet
+    is_active = Column(Boolean, default=True)
+    performance_notes = Column(Text, nullable=True)
+
+
+class CommitteeAction(Base):
+    __tablename__ = "committee_actions"
+
+    id = Column(Integer, primary_key=True)
+    committee_id = Column(Integer, ForeignKey("committees.id"), nullable=False)
+    action_type = Column(String, nullable=False)                 # "proposal" | "decision" | "review" | "audit"
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    proposed_by = Column(String, nullable=False)                 # committee member handle
+    status = Column(String, default="pending")                   # "pending" | "approved" | "rejected" | "executed"
+    board_votes_for = Column(Integer, default=0)
+    board_votes_against = Column(Integer, default=0)
+    board_required = Column(Integer, default=1)                  # votes needed
+    created_at = Column(DateTime, default=utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+    outcome = Column(Text, nullable=True)
+
+
+class BoardVote(Base):
+    __tablename__ = "board_votes"
+
+    id = Column(Integer, primary_key=True)
+    action_id = Column(Integer, ForeignKey("committee_actions.id"), nullable=False)
+    node_id = Column(String, nullable=False)                     # which node voted
+    voter_handle = Column(String, nullable=False)
+    vote = Column(String, nullable=False)                        # "yes" | "no" | "abstain"
+    voted_at = Column(DateTime, default=utcnow)
+    reason = Column(Text, nullable=True)
 
 
 class TokenPurchase(Base):

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora — Committees</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #7c6af7; }
+    header nav { display: flex; gap: 16px; font-size: 0.85rem; }
+    header nav a { color: #7c6af7; text-decoration: none; }
+    #auth-bar { display: flex; gap: 8px; align-items: center; }
+    #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 6px 10px; border-radius: 5px; font-size: 0.82rem; width: 220px; }
+    #auth-bar button { background: #7c6af7; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    .board-bar { background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.82rem; color: #4caf50; }
+    .committee-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .committee-name { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .committee-domain { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .committee-desc { font-size: 0.84rem; color: #aaa; margin-bottom: 12px; }
+    .member-chip { display: inline-block; background: #2a2a2a; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; color: #888; margin: 2px; }
+    .member-chip.head { background: #13102a; color: #7c6af7; border: 1px solid #2a1a5a; }
+    .charter-text { font-size: 0.8rem; color: #666; border-left: 2px solid #2a2a2a; padding-left: 12px; margin-top: 10px; line-height: 1.5; }
+    .action-row { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 6px 0; border-bottom: 1px solid #1e1e1e; }
+    .status-badge { font-size: 0.7rem; padding: 2px 7px; border-radius: 3px; font-weight: 600; }
+    .status-pending { background: #2a2a1a; color: #f5a623; }
+    .status-approved { background: #0f2a0f; color: #4caf50; }
+    .status-rejected { background: #2a0f0f; color: #f66; }
+    .propose-btn { background: #7c6af7; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>&#x2B21; <span>Agora</span> Committees</h1>
+  <nav>
+    <a href="/ui#assets">← Feed</a>
+    <a href="/ui#profile">Profile</a>
+    <a href="/ui#messages">Messages</a>
+    <a href="/ui#users">Members</a>
+  </nav>
+  <div id="auth-bar">
+    <input type="text" id="key-input" placeholder="API key (agora_...)">
+    <button onclick="connect()">Connect</button>
+    <span id="user-chip"></span>
+  </div>
+</header>
+<main>
+  <div id="board-bar" class="board-bar">Loading board info...</div>
+  <div id="committee-list"><div style="color:#444;padding:32px;text-align:center">Loading committees...</div></div>
+</main>
+<script>
+var KEY = localStorage.getItem('agora_key') || '';
+var ME = null;
+var BOARD = [];
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function connect() {
+  KEY = document.getElementById('key-input').value.trim();
+  localStorage.setItem('agora_key', KEY);
+  boot();
+}
+
+async function api(path, method, body) {
+  var opts = { method: method||'GET', headers: {'X-API-Key': KEY, 'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  var r = await fetch(path, opts);
+  var d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
+}
+
+async function boot() {
+  if (KEY) {
+    document.getElementById('key-input').value = KEY;
+    try {
+      ME = await api('/users/me');
+      document.getElementById('user-chip').innerHTML = '<strong style="color:#7c6af7">@' + esc(ME.handle) + '</strong> · ' + ME.total_score.toFixed(1) + ' pts';
+    } catch(e) {}
+  }
+  loadCommittees();
+}
+
+async function loadCommittees() {
+  try {
+    var d = await fetch('/committees').then(r => r.json());
+    BOARD = d.board || [];
+    var isBoard = ME && BOARD.includes(ME.handle);
+
+    document.getElementById('board-bar').innerHTML =
+      '🏛 Board of Directors: ' + BOARD.map(function(h){ return '<strong>@' + esc(h) + '</strong>'; }).join(' · ') +
+      (isBoard ? ' <span style="background:#1a4a1a;color:#4caf50;padding:2px 8px;border-radius:3px;font-size:0.75rem;margin-left:8px;">You are on the Board</span>' : '');
+
+    var html = '';
+    (d.committees||[]).forEach(function(c) {
+      var isHead = ME && c.members.some(function(m){ return m.handle === ME.handle && m.role === 'head'; });
+      var isMember = ME && c.members.some(function(m){ return m.handle === ME.handle; });
+
+      html += '<div class="committee-card">';
+      html += '<div class="committee-name">' + esc(c.name) + '</div>';
+      html += '<div class="committee-domain">' + esc(c.domain||'') + '</div>';
+      html += '<div class="committee-desc">' + esc(c.description||'') + '</div>';
+      html += '<div style="margin-bottom:8px;">';
+      c.members.forEach(function(m) {
+        var termStr = m.term_ends_at ? ' · term ends ' + new Date(m.term_ends_at).toLocaleDateString() : ' · no term set';
+        html += '<span class="member-chip ' + (m.role==='head'?'head':'') + '">@' + esc(m.handle) + (m.role==='head'?' (head)':'') + termStr + '</span>';
+      });
+      html += '</div>';
+      html += '<details><summary style="cursor:pointer;color:#555;font-size:0.8rem;">Charter ▾</summary>';
+      html += '<div class="charter-text">' + esc(c.charter||'No charter set.') + '</div></details>';
+
+      if (isBoard || isMember) {
+        html += '<div style="margin-top:12px;border-top:1px solid #222;padding-top:12px;">';
+        html += '<button class="propose-btn" onclick="openPropose(\'' + esc(c.slug) + '\')">+ Propose Action</button>';
+        if (isBoard) {
+          html += ' <button onclick="openAddMember(\'' + esc(c.slug) + '\')" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.8rem;margin-left:6px;">+ Add Member</button>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+
+    document.getElementById('committee-list').innerHTML = html || '<div style="color:#444;padding:32px;text-align:center">No committees found.</div>';
+  } catch(e) {
+    document.getElementById('committee-list').innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+function openPropose(slug) {
+  var content = prompt('Proposal title:');
+  if (!content) return;
+  var desc = prompt('Description (optional):');
+  api('/committees/' + slug + '/propose', 'POST', {title: content, description: desc||null, action_type: 'proposal'})
+    .then(function(d) { alert('Proposed! Action #' + d.action_id + ' awaiting board vote (' + d.board_required + ' votes needed)'); loadCommittees(); })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+function openAddMember(slug) {
+  var handle = prompt('Handle to add as member:');
+  if (!handle) return;
+  var role = prompt('Role (member or head):', 'member');
+  api('/committees/' + slug + '/members', 'POST', {handle: handle, role: role||'member', term_days: 90})
+    .then(function(d) { alert('Added @' + d.member + ' as ' + d.role); loadCommittees(); })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
+</script>
+</body>
+</html>

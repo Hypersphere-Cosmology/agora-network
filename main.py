@@ -18,6 +18,7 @@ from ratelimit import limiter, rate_limit_exceeded_handler
 
 from routers import users, assets, marketplace, governance, bank, sim, notifications, info, proxy, comments, services, files, fiat, federation
 from routers.social import router as social_router
+from routers.committees import router as committees_router
 
 
 @asynccontextmanager
@@ -63,6 +64,12 @@ app.include_router(files.router)
 app.include_router(fiat.router)
 app.include_router(federation.router)
 app.include_router(social_router)
+app.include_router(committees_router)
+
+@app.get("/committees", include_in_schema=False)
+def committees_page():
+    return FileResponse("static/committees.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)
