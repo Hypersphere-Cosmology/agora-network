@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora — Board</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #4caf50; }
+    header nav a { color: #7c6af7; text-decoration: none; font-size: 0.85rem; margin-right: 16px; }
+    #auth-bar { display: flex; gap: 8px; align-items: center; }
+    #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 6px 10px; border-radius: 5px; font-size: 0.82rem; width: 220px; }
+    #auth-bar button { background: #4caf50; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
+    main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    .section-title { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 24px; }
+    .action-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 10px; }
+    .action-title { font-size: 0.92rem; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .action-meta { font-size: 0.75rem; color: #555; margin-bottom: 10px; }
+    .vote-bar { display: flex; gap: 8px; margin-top: 8px; }
+    .vote-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600; }
+    .vote-yes { background: #0f2a0f; color: #4caf50; border: 1px solid #1a4a1a; }
+    .vote-yes:hover { background: #1a4a1a; }
+    .vote-no { background: #2a0f0f; color: #f66; border: 1px solid #4a1a1a; }
+    .vote-no:hover { background: #4a1a1a; }
+    .vote-abstain { background: #1a1a2a; color: #888; border: 1px solid #2a2a3a; }
+    .proxy-box { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .board-member { display: inline-flex; align-items: center; gap: 6px; background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 6px; padding: 4px 10px; margin: 4px; font-size: 0.8rem; color: #4caf50; }
+    .progress-bar { height: 4px; background: #2a2a2a; border-radius: 2px; overflow: hidden; margin-top: 6px; }
+    .progress-fill { height: 100%; background: #7c6af7; border-radius: 2px; }
+    .status-badge { font-size: 0.7rem; padding: 2px 7px; border-radius: 3px; font-weight: 600; display: inline-block; }
+    .s-pending { background: #2a2a1a; color: #f5a623; }
+    .s-approved { background: #0f2a0f; color: #4caf50; }
+    .s-rejected { background: #2a0f0f; color: #f66; }
+    .s-executed { background: #1a1a2a; color: #7c6af7; }
+    #not-board { display: none; background: #2a0f0f; border: 1px solid #4a1a1a; border-radius: 8px; padding: 20px; text-align: center; color: #f66; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🏛 <span>Agora</span> Board</h1>
+  <nav>
+    <a href="/ui#assets">← Feed</a>
+    <a href="/committees">Committees</a>
+    <a href="/governance-portal">Governance</a>
+  </nav>
+  <div id="auth-bar">
+    <input type="text" id="key-input" placeholder="API key (agora_...)">
+    <button onclick="connect()">Connect</button>
+    <span id="user-chip"></span>
+  </div>
+</header>
+<main>
+  <div id="not-board">You are not a Board member. Operate a node to join the Board of Directors.</div>
+  <div id="board-content" style="display:none">
+    <div id="board-members-section"></div>
+    <div id="proxy-section" class="proxy-box">
+      <div class="section-title">Proxy Settings</div>
+      <div id="proxy-status" style="font-size:0.82rem;color:#888;margin-bottom:10px;">Loading...</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <select id="proxy-select" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:6px 10px;border-radius:5px;font-size:0.82rem;">
+          <option value="">-- Select proxy --</option>
+        </select>
+        <button onclick="setProxy()" style="background:#7c6af7;color:#fff;border:none;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Set Proxy</button>
+        <button onclick="clearProxy()" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Clear Proxy</button>
+      </div>
+    </div>
+    <div class="section-title">Pending Board Votes</div>
+    <div id="pending-actions"></div>
+    <div class="section-title">Recent Decisions</div>
+    <div id="recent-actions"></div>
+  </div>
+</main>
+<script>
+var KEY = localStorage.getItem('agora_key') || '';
+var ME = null;
+var BOARD = [];
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function connect() {
+  KEY = document.getElementById('key-input').value.trim();
+  localStorage.setItem('agora_key', KEY);
+  boot();
+}
+
+async function api(path, method, body) {
+  var opts = { method: method||'GET', headers: {'X-API-Key': KEY, 'Content-Type': 'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  var r = await fetch(path, opts);
+  var d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
+}
+
+async function boot() {
+  if (!KEY) return;
+  document.getElementById('key-input').value = KEY;
+  try {
+    ME = await api('/users/me');
+    document.getElementById('user-chip').innerHTML = '<strong style="color:#4caf50">@' + esc(ME.handle) + '</strong>';
+  } catch(e) { return; }
+
+  // Get committees to find board
+  var d = await fetch('/committees').then(r => r.json());
+  BOARD = d.board || [];
+
+  if (!BOARD.includes(ME.handle)) {
+    document.getElementById('not-board').style.display = 'block';
+    return;
+  }
+  document.getElementById('board-content').style.display = 'block';
+
+  // Board members
+  var membersHtml = '<div class="section-title">Board of Directors</div><div style="margin-bottom:20px;">';
+  BOARD.forEach(function(h) {
+    membersHtml += '<span class="board-member">' + (h === ME.handle ? '★ ' : '') + '@' + esc(h) + (h === ME.handle ? ' (you)' : '') + '</span>';
+  });
+  membersHtml += '</div>';
+  document.getElementById('board-members-section').innerHTML = membersHtml;
+
+  // Proxy status
+  loadProxyStatus();
+
+  // Load pending actions across all committees
+  loadPendingActions();
+}
+
+async function loadProxyStatus() {
+  try {
+    var p = await api('/committees/proxy/my');
+    var statusEl = document.getElementById('proxy-status');
+    if (p.my_proxy) {
+      statusEl.innerHTML = 'Your proxy: <strong style="color:#7c6af7">@' + esc(p.my_proxy.proxy_handle) + '</strong> (scope: ' + esc(p.my_proxy.scope) + ') · They vote on your behalf when you are absent.';
+    } else {
+      statusEl.textContent = 'No proxy set. Your votes require your personal action.';
+    }
+    if (p.proxied_for && p.proxied_for.length > 0) {
+      statusEl.innerHTML += '<br><span style="color:#555">You are proxy for: ' + p.proxied_for.map(function(x){ return '@' + esc(x.grantor); }).join(', ') + '</span>';
+    }
+    // Populate proxy select
+    var sel = document.getElementById('proxy-select');
+    sel.innerHTML = '<option value="">-- Select proxy --</option>';
+    BOARD.filter(function(h){ return h !== ME.handle; }).forEach(function(h) {
+      sel.innerHTML += '<option value="' + esc(h) + '">@' + esc(h) + '</option>';
+    });
+    if (p.my_proxy) sel.value = p.my_proxy.proxy_handle;
+  } catch(e) {}
+}
+
+async function setProxy() {
+  var handle = document.getElementById('proxy-select').value;
+  if (!handle) { alert('Select a board member as proxy first.'); return; }
+  try {
+    await api('/committees/proxy', 'POST', {proxy_handle: handle, scope: 'all'});
+    alert('Proxy set to @' + handle + '. They will vote on your behalf when you have not voted.');
+    loadProxyStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function clearProxy() {
+  try {
+    await api('/committees/proxy', 'DELETE');
+    alert('Proxy cleared.');
+    loadProxyStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function loadPendingActions() {
+  try {
+    // Fetch all committees and get their actions
+    var d = await fetch('/committees').then(r => r.json());
+    var pending = [];
+    var recent = [];
+    for (var c of d.committees) {
+      var detail = await fetch('/committees/' + c.slug).then(r => r.json());
+      (detail.recent_actions||[]).forEach(function(a) {
+        if (a.status === 'pending') pending.push({...a, committee: c.name, slug: c.slug});
+        else recent.push({...a, committee: c.name});
+      });
+    }
+
+    var pendingEl = document.getElementById('pending-actions');
+    if (!pending.length) {
+      pendingEl.innerHTML = '<div style="color:#444;font-size:0.82rem;padding:16px 0;">No pending votes.</div>';
+    } else {
+      pendingEl.innerHTML = pending.map(function(a) {
+        return '<div class="action-card">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start;">' +
+          '<div><div class="action-title">' + esc(a.title) + '</div>' +
+          '<div class="action-meta">' + esc(a.committee) + ' · proposed ' + new Date(a.created_at).toLocaleDateString() + '</div></div>' +
+          '<span class="status-badge s-pending">Pending</span></div>' +
+          '<div class="vote-bar">' +
+          '<button class="vote-btn vote-yes" onclick="castVote(' + a.id + ',\'yes\')">✓ Approve</button>' +
+          '<button class="vote-btn vote-no" onclick="castVote(' + a.id + ',\'no\')">✗ Reject</button>' +
+          '<button class="vote-btn vote-abstain" onclick="castVote(' + a.id + ',\'abstain\')">— Abstain</button>' +
+          '</div></div>';
+      }).join('');
+    }
+
+    var recentEl = document.getElementById('recent-actions');
+    if (!recent.length) {
+      recentEl.innerHTML = '<div style="color:#444;font-size:0.82rem;padding:16px 0;">No recent decisions.</div>';
+    } else {
+      recentEl.innerHTML = recent.slice(0,10).map(function(a) {
+        var cls = 's-' + a.status;
+        return '<div class="action-card">' +
+          '<div style="display:flex;justify-content:space-between;">' +
+          '<div><div class="action-title" style="font-size:0.85rem;">' + esc(a.title) + '</div>' +
+          '<div class="action-meta">' + esc(a.committee) + '</div></div>' +
+          '<span class="status-badge ' + cls + '">' + esc(a.status) + '</span></div>' +
+          '</div>';
+      }).join('');
+    }
+  } catch(e) {
+    document.getElementById('pending-actions').innerHTML = '<div style="color:#f66">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+async function castVote(actionId, vote) {
+  var reason = vote === 'abstain' ? null : prompt('Reason (optional):');
+  try {
+    var r = await api('/committees/actions/' + actionId + '/vote', 'POST', {vote: vote, reason: reason});
+    alert('Vote cast: ' + vote + '\nStatus: ' + r.status + '\nFor: ' + r.votes_for + ' / Against: ' + r.votes_against + ' / Required: ' + r.required);
+    loadPendingActions();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
+</script>
+</body>
+</html>

@@ -266,6 +266,26 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE committee_members ADD COLUMN actions_since_review INTEGER DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE committee_members ADD COLUMN review_threshold INTEGER DEFAULT 10"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE committee_members ADD COLUMN last_reviewed_at TIMESTAMP"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("CREATE TABLE IF NOT EXISTS board_proxies (id INTEGER PRIMARY KEY, grantor_handle VARCHAR NOT NULL, proxy_handle VARCHAR NOT NULL, set_at TIMESTAMP, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT 1, scope VARCHAR DEFAULT 'all')"))
+            conn.commit()
+        except Exception:
+            pass
 
     # Seed config values into StorageConfig
     db = SessionLocal()
@@ -483,9 +503,12 @@ class CommitteeMember(Base):
     role = Column(String, default="member")                      # "head" | "member"
     approved_by = Column(String, nullable=True)                  # handle of approving board member
     joined_at = Column(DateTime, default=utcnow)
-    term_ends_at = Column(DateTime, nullable=True)               # NULL = no term set yet
+    term_ends_at = Column(DateTime, nullable=True)               # kept for compat; not used in activity-based review
     is_active = Column(Boolean, default=True)
     performance_notes = Column(Text, nullable=True)
+    actions_since_review = Column(Integer, default=0)            # actions performed since last review
+    review_threshold = Column(Integer, default=10)               # review triggered after X actions
+    last_reviewed_at = Column(DateTime, nullable=True)
 
 
 class CommitteeAction(Base):
@@ -498,12 +521,24 @@ class CommitteeAction(Base):
     description = Column(Text, nullable=True)
     proposed_by = Column(String, nullable=False)                 # committee member handle
     status = Column(String, default="pending")                   # "pending" | "approved" | "rejected" | "executed"
-    board_votes_for = Column(Integer, default=0)
-    board_votes_against = Column(Integer, default=0)
-    board_required = Column(Integer, default=1)                  # votes needed
+    board_votes_for = Column(Float, default=0.0)                 # weighted vote total
+    board_votes_against = Column(Float, default=0.0)             # weighted vote total
+    board_required = Column(Float, default=1.0)                  # weighted votes needed
     created_at = Column(DateTime, default=utcnow)
     resolved_at = Column(DateTime, nullable=True)
     outcome = Column(Text, nullable=True)
+
+
+class BoardProxy(Base):
+    __tablename__ = "board_proxies"
+
+    id = Column(Integer, primary_key=True)
+    grantor_handle = Column(String, nullable=False)              # who set the proxy
+    proxy_handle = Column(String, nullable=False)                # who votes on their behalf
+    set_at = Column(DateTime, default=utcnow)
+    expires_at = Column(DateTime, nullable=True)                 # NULL = indefinite
+    is_active = Column(Boolean, default=True)
+    scope = Column(String, default="all")                        # "all" | committee slug
 
 
 class BoardVote(Base):

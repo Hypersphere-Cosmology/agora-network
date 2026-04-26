@@ -294,6 +294,7 @@
     <div class="more-menu-item" onclick="closeMore();showTab('market')">🛒 Marketplace</div>
     <a href="/governance-portal" class="more-menu-item" style="color:#ccc;">⚖️ Governance</a>
     <a href="/bank-portal" class="more-menu-item" style="color:#4caf50;">🏦 Bank</a>
+    <a href="/board" class="more-menu-item" style="color:#4caf50;">⚡ Board Portal</a>
     <a href="/committees" class="more-menu-item" style="color:#ccc;">🏛 Committees</a>
     <div class="more-menu-item" onclick="closeMore();toggleNetworkStatus()">📡 Network Status</div>
     <a href="/faq" class="more-menu-item" style="color:#ccc;">❓ FAQ</a>
@@ -790,16 +791,12 @@ async function loadProfile() {
     // Score breakdown
     var html = '';
 
-    // Top stats grid
+    // Top stats grid — compact 4-card layout
+    var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
     html += '<div class="profile-grid">';
     html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">≈$' + (Number(ME.token_balance) * USD_PER_TOKEN).toFixed(2) + ' USD · earned from asset ratings</div></div>';
-    html += '<div class="stat-card"><div class="label">Submission</div><div class="value score">' + (ME.submission_score||0).toFixed(2) + '</div><div class="sub">raw: ' + (ME.submission_raw||0).toFixed(1) + ' · max 10</div></div>';
-    html += '<div class="stat-card"><div class="label">Rater</div><div class="value score">' + (ME.rater_score||0).toFixed(2) + '</div><div class="sub">' + (ME.rater_raw||0) + ' ratings given · max 10</div></div>';
-    html += '<div class="stat-card"><div class="label">Trade</div><div class="value score">' + (ME.trade_score||0).toFixed(2) + '</div><div class="sub">raw: ' + (ME.trade_raw||0).toFixed(1) + ' · max 10</div></div>';
-    html += '<div class="stat-card"><div class="label">Referral</div><div class="value score">' + (ME.referral_score||0).toFixed(2) + '</div><div class="sub">' + (ME.referral_raw||0) + ' active referrals · max 10</div></div>';
     html += '<div class="stat-card" style="border-color:#7c6af7;"><div class="label">Total Score</div><div class="value score" style="font-size:2.2rem;">' + (ME.total_score||0).toFixed(2) + '</div><div class="sub">of 40 maximum</div></div>';
     html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
-    var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
     html += '<div class="stat-card"><div class="label">Tokens Minted (your assets)</div><div class="value tokens">' + totalMinted.toFixed(4) + ' A</div><div class="sub">across all your submissions</div></div>';
     html += '</div>';
 
@@ -2035,6 +2032,11 @@ function openThread(threadId, otherParty) {
       body: JSON.stringify({thread_id: threadId})
     }).then(function(){ loadInbox(); });
   }
+  // Scroll to compose
+  setTimeout(function() {
+    var compose = document.getElementById('dm-compose');
+    if (compose) compose.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }, 100);
 }
 
 async function sendDM() {

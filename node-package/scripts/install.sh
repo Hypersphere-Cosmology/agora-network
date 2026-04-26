@@ -7,7 +7,7 @@
 
 set -e
 
-EXPECTED_HASH="309464de5a8a7353d0f06c85abe3d637e263b9cf31cb006f435a53f86acb6c9e"
+EXPECTED_HASH="ed704cac144c9dbd13e4341c58999f7e39d18fef308a160490b674553de01eab"
 AGORA_DIR="$HOME/agora-node"
 
 # ── 1. Find a live node ──────────────────────────────────────────────────────

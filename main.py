@@ -70,6 +70,10 @@ app.include_router(committees_router)
 def committees_page():
     return FileResponse("static/committees.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
+@app.get("/board", include_in_schema=False)
+def board_page():
+    return FileResponse("static/board.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)

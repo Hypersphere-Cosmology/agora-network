@@ -40,6 +40,7 @@
     <a href="/ui#profile">Profile</a>
     <a href="/ui#messages">Messages</a>
     <a href="/ui#users">Members</a>
+    <a href="/board">Board Portal</a>
   </nav>
   <div id="auth-bar">
     <input type="text" id="key-input" placeholder="API key (agora_...)">
@@ -105,8 +106,8 @@ async function loadCommittees() {
       html += '<div class="committee-desc">' + esc(c.description||'') + '</div>';
       html += '<div style="margin-bottom:8px;">';
       c.members.forEach(function(m) {
-        var termStr = m.term_ends_at ? ' · term ends ' + new Date(m.term_ends_at).toLocaleDateString() : ' · no term set';
-        html += '<span class="member-chip ' + (m.role==='head'?'head':'') + '">@' + esc(m.handle) + (m.role==='head'?' (head)':'') + termStr + '</span>';
+        var actStr = ' · ' + (m.actions_since_review||0) + '/' + (m.review_threshold||10) + ' actions';
+        html += '<span class="member-chip ' + (m.role==='head'?'head':'') + '">@' + esc(m.handle) + (m.role==='head'?' (head)':'') + actStr + '</span>';
       });
       html += '</div>';
       html += '<details><summary style="cursor:pointer;color:#555;font-size:0.8rem;">Charter ▾</summary>';
