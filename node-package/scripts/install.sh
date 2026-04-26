@@ -6,9 +6,9 @@
 set -e
 
 NODE_1_URL="http://68.39.46.12:8001"
-REPO_URL="https://github.com/viralsatan/agora-node"  # will be live soon
+REPO_URL="https://github.com/Hypersphere-Cosmology/agora-network"
 AGORA_DIR="$HOME/agora-node"
-EXPECTED_HASH="57677273aad1f6b2f9646729c33ad3c1b17921cc320fd13642ed06e8c2a6a235"
+EXPECTED_HASH="c9c17d5c343885e51d3e3a4bc5c6c6c9cdd5d87fc496c633f21db9c122b7cf41"
 
 echo "=== Agora Node Installer ==="
 echo "Connecting to Node 1: $NODE_1_URL"
