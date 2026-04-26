@@ -5,7 +5,7 @@
 
 set -e
 
-NODE_1_URL="https://backed-labels-server-sporting.trycloudflare.com"
+NODE_1_URL="http://68.39.46.12:8001"
 REPO_URL="https://github.com/viralsatan/agora-node"  # will be live soon
 AGORA_DIR="$HOME/agora-node"
 EXPECTED_HASH="57677273aad1f6b2f9646729c33ad3c1b17921cc320fd13642ed06e8c2a6a235"

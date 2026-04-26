@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-NODE1_URL = "https://backed-labels-server-sporting.trycloudflare.com"
+NODE1_URL = "http://68.39.46.12:8001"
 CONFIG_FILE = Path(".env.json")
 
 
