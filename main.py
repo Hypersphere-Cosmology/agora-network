@@ -73,6 +73,13 @@ def ui():
         "Expires": "0"
     })
 
+@app.get("/any", include_in_schema=False)
+async def any_shortcut(ref: str = None):
+    """Short alias for /federation/any — the shareable entry point."""
+    from routers.federation import any_redirect
+    return await any_redirect(ref=ref)
+
+
 @app.get("/join", include_in_schema=False)
 def join():
     return FileResponse("static/index.html", headers={

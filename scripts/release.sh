@@ -57,6 +57,17 @@ tar -czf static/agora-node.tar.gz \
   .
 echo "✅ node package rebuilt ($(du -sh static/agora-node.tar.gz | cut -f1))"
 
+# 4b. Sync Node 2 (same machine — keep it current immediately)
+if [ -d "$HOME/agora-node-2" ]; then
+    rsync -a --exclude='venv' --exclude='agora.db*' --exclude='.secrets' \
+      --exclude='KEYS.txt' --exclude='backups' --exclude='__pycache__' \
+      --exclude='uploads' --exclude='.DS_Store' --exclude='moltbook-archive' \
+      --exclude='.env.json' --exclude='peers.json' --exclude='bootstrap-snapshot.json' \
+      . "$HOME/agora-node-2/"
+    launchctl stop ai.ava.agora-node2 2>/dev/null; sleep 1; launchctl start ai.ava.agora-node2
+    echo "✅ Node 2 synced and restarted"
+fi
+
 # 5. Commit and push
 git add -A
 git commit -m "$MSG"
