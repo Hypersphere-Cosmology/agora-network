@@ -7,7 +7,7 @@ import hashlib
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -73,11 +73,17 @@ _NO_CACHE = {
 
 @app.get("/committees", include_in_schema=False)
 def committees_page():
-    return FileResponse("static/committees.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/committees.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/board", include_in_schema=False)
 def board_page():
-    return FileResponse("static/board.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/board.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 app.include_router(committees_router)
 
@@ -85,7 +91,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)
 def ui():
-    return FileResponse("static/index.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/index.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/any", include_in_schema=False)
 async def any_shortcut(ref: str = None):
@@ -96,27 +105,45 @@ async def any_shortcut(ref: str = None):
 
 @app.get("/join", include_in_schema=False)
 def join():
-    return FileResponse("static/index.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/index.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/u/{handle}", include_in_schema=False)
 def user_profile(handle: str):
-    return FileResponse("static/profile.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/profile.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/bounties", include_in_schema=False)
 def public_bounties():
-    return FileResponse("static/bounties.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/bounties.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/governance-portal", include_in_schema=False)
 def governance_portal():
-    return FileResponse("static/governance.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/governance.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/faq", include_in_schema=False)
 def faq():
-    return FileResponse("static/faq.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/faq.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 @app.get("/bank-portal", include_in_schema=False)
 def bank_portal():
-    return FileResponse("static/bank.html", headers=_NO_CACHE)
+    return (lambda: HTMLResponse(
+        content=open("static/bank.html").read(),
+        headers={"Cache-Control":"no-cache,no-store,must-revalidate,max-age=0","Pragma":"no-cache","Expires":"0"}
+    ))()
 
 
 def _seed_genesis():
