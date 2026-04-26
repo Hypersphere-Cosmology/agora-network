@@ -31,8 +31,8 @@
     .hero-stat .hs-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
 
     .section-title { font-size: 0.75rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-    .score-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
-    @media (max-width: 560px) { .score-grid { grid-template-columns: 1fr; } }
+    .score-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+    @media (max-width: 700px) { .score-grid { grid-template-columns: repeat(2, 1fr); } }
     .score-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; }
     .score-card .sc-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
     .score-card .sc-score { font-size: 1.3rem; font-weight: 700; color: #7c6af7; }
@@ -212,6 +212,8 @@ async function loadProfile(handle) {
     html += '<div class="score-card"><div class="sc-label">Submission</div><div class="sc-score">' + Number(user.submission_score).toFixed(4) + '</div><div class="sc-raw">raw ' + Number(user.submission_raw).toFixed(4) + '</div></div>';
     html += '<div class="score-card"><div class="sc-label">Rater</div><div class="sc-score">' + Number(user.rater_score).toFixed(4) + '</div><div class="sc-raw">' + user.rater_raw + ' ratings given</div></div>';
     html += '<div class="score-card"><div class="sc-label">Trade</div><div class="sc-score">' + Number(user.trade_score).toFixed(4) + '</div><div class="sc-raw">raw ' + Number(user.trade_raw).toFixed(4) + '</div></div>';
+    html += '<div class="score-card"><div class="sc-label">Referral</div><div class="sc-score">' + Number(user.referral_score||0).toFixed(4) + '</div><div class="sc-raw">' + (user.referral_raw||0) + ' active referrals</div></div>';
+    html += '<div class="score-card"><div class="sc-label">Node</div><div class="sc-score">' + Number(user.node_score||0).toFixed(1) + '</div><div class="sc-raw">' + (user.node_score > 0 ? 'node operator' : 'not a node') + '</div></div>';
     html += '</div>';
 
     // Referral section
