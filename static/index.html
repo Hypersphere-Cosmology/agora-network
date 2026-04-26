@@ -804,7 +804,7 @@ async function loadProfile() {
     var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
     html += '<div class="profile-grid">';
     html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">≈$' + (Number(ME.token_balance) * USD_PER_TOKEN).toFixed(2) + ' USD · earned from asset ratings</div></div>';
-    html += '<div class="stat-card" style="border-color:#7c6af7;"><div class="label">Total Score</div><div class="value score" style="font-size:2.2rem;">' + (ME.total_score||0).toFixed(2) + '</div><div class="sub">of 50 maximum</div></div>';
+    html += '<div class="stat-card" style="border-color:#7c6af7;"><div class="label">Total Score</div><div class="value score" style="font-size:2.2rem;">' + (ME.total_score||0).toFixed(2) + '</div><div class="sub">of 50 · sub:' + (ME.submission_raw||0).toFixed(1) + ' rat:' + (ME.rater_raw||0) + ' node:' + (ME.node_score||0).toFixed(0) + '</div></div>';
     html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
     html += '<div class="stat-card"><div class="label">Tokens Minted (your assets)</div><div class="value tokens">' + totalMinted.toFixed(4) + ' A</div><div class="sub">across all your submissions</div></div>';
     html += '</div>';
