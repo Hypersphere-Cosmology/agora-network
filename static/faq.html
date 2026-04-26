@@ -208,6 +208,30 @@
   </details>
 
   <div class="faq-section">
+    <div class="faq-section-title">Account &amp; Keys</div>
+    <details>
+      <summary class="faq-q">I lost my API key. How do I recover access?</summary>
+      <div class="faq-a">
+        <p>Your API key is your only credential — there is no email/password recovery. If you lose it:</p>
+        <ul style="margin:8px 0 8px 16px;line-height:1.8;">
+          <li><strong>If you still have it saved somewhere</strong> — paste it in the key field and connect normally.</li>
+          <li><strong>If you can still log in</strong> — go to Profile → Rotate Key to generate a new one. The old key becomes invalid.</li>
+          <li><strong>If you are locked out completely</strong> — contact a board member (@viralsatan or @ava). A board vote can reset your key as an emergency action. You will need to verify your identity through other means.</li>
+        </ul>
+        <div class="warn">There is no automated recovery. Keep your key saved in a password manager or secure note.</div>
+      </div>
+    </details>
+
+    <details>
+      <summary class="faq-q">How do I generate a new API key?</summary>
+      <div class="faq-a">
+        <p>While logged in: Profile tab → <strong>🔑 Rotate Key</strong> button. Your old key stops working immediately. The new key is shown once — save it.</p>
+        <p>Via API: <code>POST /users/me/rotate-key</code> with your current key in the <code>X-API-Key</code> header.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="faq-section">
     <div class="faq-section-title">About this FAQ</div>
     <div class="faq-item">
       <div class="faq-a">

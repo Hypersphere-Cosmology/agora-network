@@ -239,7 +239,7 @@
   <div id="auth-bar">
     <button id="key-toggle-btn" onclick="toggleKeyInput()" title="Enter API key" style="display:none;background:#2a2a2a;border:1px solid #444;color:#aaa;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:1rem;min-height:36px;">🔑</button>
     <input type="text" id="key-input" placeholder="Paste your API key (agora_...)">
-    <button onclick="connect()">Connect</button>
+    <button id="connect-btn" onclick="connect()">Connect</button>
     <span id="user-info"></span>
   </div>
 </header>
@@ -247,9 +247,9 @@
 @media (max-width: 600px) {
   #key-toggle-btn { display: inline-block !important; }
   #key-input { display: none; transition: all 0.2s; }
-  #key-input.expanded { display: inline-block; }
+  #key-input.expanded { display: inline-block; width: calc(100vw - 120px); }
   #auth-bar button:not(#key-toggle-btn) { display: none; }
-  #auth-bar button#connect-btn { display: none; }
+  #key-input.expanded + button, #key-input.expanded ~ button:not(#key-toggle-btn) { display: inline-block !important; }
   .key-expanded #key-input { display: inline-block; }
   .key-expanded #auth-bar button { display: inline-block; }
 }
@@ -808,6 +808,7 @@ async function loadProfile() {
     html += '<button onclick="showTab(\'assets\');toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">+ Submit Asset</button>';
     html += '<button onclick="showTab(\'market\');setTimeout(function(){document.getElementById(\'transfer-form\').style.display=\'block\';},50)" style="background:#2a2a2a;color:#ccc;border:1px solid #444;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">↗ Send Tokens</button>';
     html += '<button onclick="copyRefLink(\'' + refLink + '\')" id="ref-copy-btn" style="background:#2a2a2a;color:#ccc;border:1px solid #444;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">🔗 My Referral Link</button>';
+    html += '<button onclick="rotateKey()" style="background:#2a1a1a;color:#f5a623;border:1px solid #4a3a1a;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">🔑 Rotate Key</button>';
     html += '</div>';
 
     // Score breakdown
@@ -2130,6 +2131,20 @@ function toggleKeyInput() {
   var expanded = input.classList.toggle('expanded');
   if (connectBtn) connectBtn.style.display = expanded ? 'inline-block' : 'none';
   if (expanded) input.focus();
+}
+
+async function rotateKey() {
+  if (!confirm('Rotate your API key? Your current key will stop working immediately. Make sure to save the new one.')) return;
+  try {
+    var r = await api('/users/me/rotate-key', 'POST');
+    var newKey = r.api_key || r.new_key || r.key;
+    if (!newKey) throw new Error('No key in response: ' + JSON.stringify(r));
+    KEY = newKey;
+    localStorage.setItem('agora_key', KEY);
+    var ki = document.getElementById('key-input');
+    if (ki) ki.value = KEY;
+    alert('✅ Key rotated successfully!\n\nNew key:\n' + newKey + '\n\nSave this — it is now your only valid key.');
+  } catch(e) { alert('Failed to rotate key: ' + e.message); }
 }
 
 function copyRefLink(url) {
