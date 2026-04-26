@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime, timezone, timedelta
-from db import get_db, Committee, CommitteeMember, CommitteeAction, BoardVote, BoardProxy, User
+from datetime import datetime, timezone
+from db import get_db, Committee, CommitteeMember, CommitteeAction, BoardVote, User
 from auth import get_current_user
 from routers.federation import load_registry
 
@@ -26,86 +26,16 @@ def get_board_members() -> list:
     return board
 
 
-def board_required_votes(board: list) -> float:
-    """Weighted majority. Node operators get 1.1x weight."""
-    total_weight = len(board) * 1.1  # all current board = node operators
-    return total_weight / 2.0  # simple majority by weight
+def board_quorum_threshold(board: list) -> float:
+    """70% of ALL nodes must participate (yes + no + abstain) for quorum."""
+    return len(board) * 0.7
 
 
-def get_board_vote_weight(handle: str) -> float:
-    """Node operators get 1.1x. Future: non-node board members get 1.0."""
-    return 1.1  # all current board members are node operators
-
-
-# ── Proxy endpoints (MUST be before /{slug} routes) ──────────────────────────
-
-class ProxySet(BaseModel):
-    proxy_handle: str
-    scope: str = "all"        # "all" or committee slug
-    expires_days: Optional[int] = None  # None = indefinite
-
-
-@router.post("/proxy")
-def set_proxy(payload: ProxySet, db: Session = Depends(get_db),
-              current_user: User = Depends(get_current_user)):
-    board = get_board_members()
-    if current_user.handle not in board:
-        raise HTTPException(status_code=403, detail="Board members only")
-    if payload.proxy_handle not in board:
-        raise HTTPException(status_code=422, detail="Proxy must also be a board member")
-    if payload.proxy_handle == current_user.handle:
-        raise HTTPException(status_code=422, detail="Cannot proxy to yourself")
-
-    # Deactivate existing proxy
-    db.query(BoardProxy).filter(
-        BoardProxy.grantor_handle == current_user.handle,
-        BoardProxy.is_active == True
-    ).update({"is_active": False})
-
-    expires = None
-    if payload.expires_days:
-        expires = datetime.now(timezone.utc) + timedelta(days=payload.expires_days)
-
-    proxy = BoardProxy(
-        grantor_handle=current_user.handle,
-        proxy_handle=payload.proxy_handle,
-        scope=payload.scope,
-        expires_at=expires
-    )
-    db.add(proxy)
-    db.commit()
-    return {
-        "ok": True,
-        "proxy_set": payload.proxy_handle,
-        "scope": payload.scope,
-        "expires_at": expires.isoformat() if expires else "indefinite"
-    }
-
-
-@router.delete("/proxy")
-def clear_proxy(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db.query(BoardProxy).filter(
-        BoardProxy.grantor_handle == current_user.handle,
-        BoardProxy.is_active == True
-    ).update({"is_active": False})
-    db.commit()
-    return {"ok": True, "proxy_cleared": True}
-
-
-@router.get("/proxy/my")
-def get_my_proxy(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    proxy = db.query(BoardProxy).filter(
-        BoardProxy.grantor_handle == current_user.handle,
-        BoardProxy.is_active == True
-    ).first()
-    proxied_for = db.query(BoardProxy).filter(
-        BoardProxy.proxy_handle == current_user.handle,
-        BoardProxy.is_active == True
-    ).all()
-    return {
-        "my_proxy": {"proxy_handle": proxy.proxy_handle, "scope": proxy.scope} if proxy else None,
-        "proxied_for": [{"grantor": p.grantor_handle, "scope": p.scope} for p in proxied_for]
-    }
+def board_yes_threshold(board: list) -> float:
+    """70% of ALL nodes must vote YES for a proposal to pass.
+    Abstentions count toward quorum but NOT toward yes.
+    Effectively: abstaining = voting no for the purpose of passage."""
+    return len(board) * 0.7
 
 
 # ── Board vote (MUST be before /{slug} routes) ────────────────────────────────
@@ -136,79 +66,65 @@ def board_vote(action_id: int, payload: BoardVoteCreate, db: Session = Depends(g
     if existing:
         raise HTTPException(status_code=409, detail="Already voted on this action")
 
-    # Get node_id for this operator
+    # Record vote
     reg = load_registry()
     node_id = "node_1" if current_user.handle == "viralsatan" else next(
         (nid for nid, n in reg.get("nodes", {}).items() if n.get("operator_handle") == current_user.handle),
         "unknown"
     )
-
     vote = BoardVote(
         action_id=action_id, node_id=node_id,
         voter_handle=current_user.handle,
         vote=payload.vote, reason=payload.reason
     )
     db.add(vote)
-
-    weight = get_board_vote_weight(current_user.handle)
-    if payload.vote == "yes":
-        action.board_votes_for = round((action.board_votes_for or 0) + weight, 4)
-    elif payload.vote == "no":
-        action.board_votes_against = round((action.board_votes_against or 0) + weight, 4)
-
-    # Check if resolved
-    if action.board_votes_for >= action.board_required:
-        action.status = "approved"
-        action.resolved_at = datetime.now(timezone.utc)
-    elif action.board_votes_against >= action.board_required:
-        action.status = "rejected"
-        action.resolved_at = datetime.now(timezone.utc)
-
     db.flush()
 
-    # Auto-cast for any members who have this voter as proxy
-    if action.status == "pending":
-        proxies = db.query(BoardProxy).filter(
-            BoardProxy.proxy_handle == current_user.handle,
-            BoardProxy.is_active == True
-        ).all()
-        for p in proxies:
-            if p.grantor_handle in board:
-                # Check grantor hasn't already voted
-                already = db.query(BoardVote).filter(
-                    BoardVote.action_id == action_id,
-                    BoardVote.voter_handle == p.grantor_handle
-                ).first()
-                if not already:
-                    proxy_weight = get_board_vote_weight(p.grantor_handle)
-                    proxy_vote = BoardVote(
-                        action_id=action_id, node_id="proxy",
-                        voter_handle=p.grantor_handle,
-                        vote=payload.vote,
-                        reason=f"Proxy vote cast by @{current_user.handle}"
-                    )
-                    db.add(proxy_vote)
-                    if payload.vote == "yes":
-                        action.board_votes_for = round((action.board_votes_for or 0) + proxy_weight, 4)
-                    elif payload.vote == "no":
-                        action.board_votes_against = round((action.board_votes_against or 0) + proxy_weight, 4)
+    # Tally all votes for this action
+    all_votes = db.query(BoardVote).filter(BoardVote.action_id == action_id).all()
+    yes_count = sum(1 for v in all_votes if v.vote == "yes")
+    no_count = sum(1 for v in all_votes if v.vote == "no")
+    abstain_count = sum(1 for v in all_votes if v.vote == "abstain")
+    total_participated = yes_count + no_count + abstain_count
+    total_board = len(board)
 
-        # Re-check resolution after proxy votes
-        if action.status == "pending":
-            if action.board_votes_for >= action.board_required:
-                action.status = "approved"
-                action.resolved_at = datetime.now(timezone.utc)
-            elif action.board_votes_against >= action.board_required:
-                action.status = "rejected"
-                action.resolved_at = datetime.now(timezone.utc)
+    threshold = total_board * 0.7  # 70% of all nodes
+
+    # Quorum: 70% of all nodes must participate
+    quorum_met = total_participated >= threshold
+
+    # Check resolution
+    remaining_possible_yes = total_board - total_participated  # board members who haven't voted yet
+
+    if quorum_met:
+        if yes_count >= threshold:
+            action.status = "approved"
+            action.resolved_at = datetime.now(timezone.utc)
+        elif (yes_count + remaining_possible_yes) < threshold:
+            # Even if all remaining voted yes, can't reach threshold
+            action.status = "rejected"
+            action.resolved_at = datetime.now(timezone.utc)
+
+    # Update action tallies for display (board_votes_for = yes, board_votes_against = no+abstain)
+    action.board_votes_for = yes_count
+    action.board_votes_against = no_count + abstain_count
+    action.board_required = threshold
 
     db.commit()
     return {
-        "ok": True, "vote": payload.vote,
+        "ok": True,
+        "vote": payload.vote,
         "status": action.status,
-        "votes_for": action.board_votes_for,
-        "votes_against": action.board_votes_against,
-        "required": action.board_required,
+        "yes_votes": yes_count,
+        "no_votes": no_count,
+        "abstain_votes": abstain_count,
+        "total_participated": total_participated,
+        "total_board": total_board,
+        "threshold": threshold,
+        "quorum_met": quorum_met,
+        "votes_for": yes_count,
+        "votes_against": no_count + abstain_count,
+        "required": threshold,
     }
 
 
@@ -237,7 +153,7 @@ def list_committees(db: Session = Depends(get_db)):
                 "role": m.role,
                 "term_ends_at": m.term_ends_at.isoformat() if m.term_ends_at else None,
                 "actions_since_review": m.actions_since_review or 0,
-                "review_threshold": m.review_threshold or 10,
+                "review_threshold": m.review_threshold or 100,
                 "last_reviewed_at": m.last_reviewed_at.isoformat() if m.last_reviewed_at else None,
             } for m in members],
             "member_count": len(members),
@@ -261,7 +177,7 @@ def get_committee(slug: str, db: Session = Depends(get_db)):
             "joined_at": m.joined_at.isoformat(),
             "term_ends_at": m.term_ends_at.isoformat() if m.term_ends_at else None,
             "actions_since_review": m.actions_since_review or 0,
-            "review_threshold": m.review_threshold or 10,
+            "review_threshold": m.review_threshold or 100,
             "last_reviewed_at": m.last_reviewed_at.isoformat() if m.last_reviewed_at else None,
         } for m in members],
         "recent_actions": [{"id": a.id, "title": a.title, "type": a.action_type, "status": a.status, "created_at": a.created_at.isoformat()} for a in actions],
@@ -299,7 +215,7 @@ def propose_action(slug: str, payload: ActionCreate, db: Session = Depends(get_d
         title=payload.title,
         description=payload.description,
         proposed_by=current_user.handle,
-        board_required=board_required_votes(board),
+        board_required=round(len(board) * 0.7, 4),
     )
     db.add(action)
     db.flush()

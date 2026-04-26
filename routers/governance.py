@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
-from db import get_db, User, Proposal, ProposalOption, Vote, Asset
+from db import get_db, User, Proposal, ProposalOption, Vote, Asset, StorageConfig
 import config as _config
 from auth import get_current_user
 from notifications import notify
@@ -83,6 +83,12 @@ def create_proposal(payload: ProposalCreate, db: Session = Depends(get_db)):
 
     if len(payload.options) < 2:
         raise HTTPException(status_code=422, detail="At least 2 options required")
+
+    MAX_OPTIONS = 5  # governance-adjustable via StorageConfig
+    max_opts_row = db.query(StorageConfig).filter(StorageConfig.key == "max_proposal_options").first()
+    max_opts = int(max_opts_row.value_text) if max_opts_row else MAX_OPTIONS
+    if len(payload.options) > max_opts:
+        raise HTTPException(status_code=422, detail=f"Maximum {max_opts} options per proposal. Current limit is governance-adjustable.")
 
     proposal = Proposal(
         title=payload.title,
@@ -381,6 +387,21 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             db.close()
 
 
+    # Max proposal options
+    if "max proposal options" in title_lower:
+        match = re.search(r'(\d+)', winning_label)
+        if match:
+            new_val = str(int(match.group(1)))
+            db2 = SessionLocal()
+            try:
+                row = db2.query(StorageConfigModel).filter(StorageConfigModel.key == "max_proposal_options").first()
+                if row:
+                    row.value_text = new_val
+                    db2.commit()
+                    print(f"[governance] Max proposal options updated to {new_val} by proposal #{proposal.id}")
+            finally:
+                db2.close()
+
     # User removal by vote: title contains "remove user" or "ban user", winning label is the handle
     if ("remove user" in title_lower or "ban user" in title_lower or "remove account" in title_lower):
         # winning_label should be the handle to remove
@@ -528,6 +549,15 @@ def get_parameters(db: Session = Depends(get_db)):
                 "display": "Submission (0-10) + Rater (0-10) + Trade (0-10) + Referral (0-10) = 40 max",
                 "description": "Four equally-weighted percentile-normalized dimensions. Max total score: 40. Dimensions and weights adjustable by vote.",
                 "proposal_format": "Propose 'add score dimension: <name>' or 'reweight score dimensions'",
+                "category": "governance"
+            },
+            {
+                "name": "Max Proposal Options",
+                "key": "max_proposal_options",
+                "current_value": int(cfg("max_proposal_options", 5.0) if db.query(StorageConfig).filter(StorageConfig.key == "max_proposal_options").first() else 5),
+                "display": "5 options maximum",
+                "description": "Maximum number of options in a ranked-choice governance proposal. 5 is the recommended cognitive limit for meaningful ranking.",
+                "proposal_format": "Include 'max proposal options' in title, winning option as '7'",
                 "category": "governance"
             },
         ],

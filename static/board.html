@@ -26,7 +26,6 @@
     .vote-no { background: #2a0f0f; color: #f66; border: 1px solid #4a1a1a; }
     .vote-no:hover { background: #4a1a1a; }
     .vote-abstain { background: #1a1a2a; color: #888; border: 1px solid #2a2a3a; }
-    .proxy-box { background: #1a1a2a; border: 1px solid #2a2a3a; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
     .board-member { display: inline-flex; align-items: center; gap: 6px; background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 6px; padding: 4px 10px; margin: 4px; font-size: 0.8rem; color: #4caf50; }
     .progress-bar { height: 4px; background: #2a2a2a; border-radius: 2px; overflow: hidden; margin-top: 6px; }
     .progress-fill { height: 100%; background: #7c6af7; border-radius: 2px; }
@@ -56,16 +55,10 @@
   <div id="not-board">You are not a Board member. Operate a node to join the Board of Directors.</div>
   <div id="board-content" style="display:none">
     <div id="board-members-section"></div>
-    <div id="proxy-section" class="proxy-box">
-      <div class="section-title">Proxy Settings</div>
-      <div id="proxy-status" style="font-size:0.82rem;color:#888;margin-bottom:10px;">Loading...</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <select id="proxy-select" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:6px 10px;border-radius:5px;font-size:0.82rem;">
-          <option value="">-- Select proxy --</option>
-        </select>
-        <button onclick="setProxy()" style="background:#7c6af7;color:#fff;border:none;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Set Proxy</button>
-        <button onclick="clearProxy()" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Clear Proxy</button>
-      </div>
+    <div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:14px 18px;margin-bottom:20px;font-size:0.82rem;color:#888;">
+      <strong style="color:#4caf50;">Board voting rules:</strong> 70% of all nodes must participate (yes/no/abstain) for quorum.
+      70% must vote YES to pass. Abstaining counts toward quorum but not toward yes — effectively a no.
+      No proxies. Each board member votes independently.
     </div>
     <div class="section-title">Pending Board Votes</div>
     <div id="pending-actions"></div>
@@ -121,51 +114,8 @@ async function boot() {
   membersHtml += '</div>';
   document.getElementById('board-members-section').innerHTML = membersHtml;
 
-  // Proxy status
-  loadProxyStatus();
-
   // Load pending actions across all committees
   loadPendingActions();
-}
-
-async function loadProxyStatus() {
-  try {
-    var p = await api('/committees/proxy/my');
-    var statusEl = document.getElementById('proxy-status');
-    if (p.my_proxy) {
-      statusEl.innerHTML = 'Your proxy: <strong style="color:#7c6af7">@' + esc(p.my_proxy.proxy_handle) + '</strong> (scope: ' + esc(p.my_proxy.scope) + ') · They vote on your behalf when you are absent.';
-    } else {
-      statusEl.textContent = 'No proxy set. Your votes require your personal action.';
-    }
-    if (p.proxied_for && p.proxied_for.length > 0) {
-      statusEl.innerHTML += '<br><span style="color:#555">You are proxy for: ' + p.proxied_for.map(function(x){ return '@' + esc(x.grantor); }).join(', ') + '</span>';
-    }
-    // Populate proxy select
-    var sel = document.getElementById('proxy-select');
-    sel.innerHTML = '<option value="">-- Select proxy --</option>';
-    BOARD.filter(function(h){ return h !== ME.handle; }).forEach(function(h) {
-      sel.innerHTML += '<option value="' + esc(h) + '">@' + esc(h) + '</option>';
-    });
-    if (p.my_proxy) sel.value = p.my_proxy.proxy_handle;
-  } catch(e) {}
-}
-
-async function setProxy() {
-  var handle = document.getElementById('proxy-select').value;
-  if (!handle) { alert('Select a board member as proxy first.'); return; }
-  try {
-    await api('/committees/proxy', 'POST', {proxy_handle: handle, scope: 'all'});
-    alert('Proxy set to @' + handle + '. They will vote on your behalf when you have not voted.');
-    loadProxyStatus();
-  } catch(e) { alert('Error: ' + e.message); }
-}
-
-async function clearProxy() {
-  try {
-    await api('/committees/proxy', 'DELETE');
-    alert('Proxy cleared.');
-    loadProxyStatus();
-  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function loadPendingActions() {

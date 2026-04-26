@@ -281,8 +281,9 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+        # Update existing review_threshold rows to 100
         try:
-            conn.execute(text("CREATE TABLE IF NOT EXISTS board_proxies (id INTEGER PRIMARY KEY, grantor_handle VARCHAR NOT NULL, proxy_handle VARCHAR NOT NULL, set_at TIMESTAMP, expires_at TIMESTAMP, is_active BOOLEAN DEFAULT 1, scope VARCHAR DEFAULT 'all')"))
+            conn.execute(text("UPDATE committee_members SET review_threshold = 100 WHERE review_threshold IS NULL OR review_threshold = 10"))
             conn.commit()
         except Exception:
             pass
@@ -298,6 +299,7 @@ def init_db():
             ("plagiarism_warn_threshold", "0.75"),
             ("max_score", "40"),
             ("score_dimensions", "submission,rater,trade,referral"),
+            ("max_proposal_options", "5"),
         ]:
             if not db.query(StorageConfig).filter(StorageConfig.key == key).first():
                 db.add(StorageConfig(key=key, value_text=val))
@@ -507,7 +509,7 @@ class CommitteeMember(Base):
     is_active = Column(Boolean, default=True)
     performance_notes = Column(Text, nullable=True)
     actions_since_review = Column(Integer, default=0)            # actions performed since last review
-    review_threshold = Column(Integer, default=10)               # review triggered after X actions
+    review_threshold = Column(Integer, default=100)              # review triggered after 100 actions (reducible by board vote)
     last_reviewed_at = Column(DateTime, nullable=True)
 
 
@@ -528,17 +530,6 @@ class CommitteeAction(Base):
     resolved_at = Column(DateTime, nullable=True)
     outcome = Column(Text, nullable=True)
 
-
-class BoardProxy(Base):
-    __tablename__ = "board_proxies"
-
-    id = Column(Integer, primary_key=True)
-    grantor_handle = Column(String, nullable=False)              # who set the proxy
-    proxy_handle = Column(String, nullable=False)                # who votes on their behalf
-    set_at = Column(DateTime, default=utcnow)
-    expires_at = Column(DateTime, nullable=True)                 # NULL = indefinite
-    is_active = Column(Boolean, default=True)
-    scope = Column(String, default="all")                        # "all" | committee slug
 
 
 class BoardVote(Base):
