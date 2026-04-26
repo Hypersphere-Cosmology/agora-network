@@ -209,6 +209,7 @@
     <span>Trades: <strong id="s-trades">&#8212;</strong></span>
     <span>Bank: <strong id="s-bank">&#8212;</strong> A</span>
     <span style="border-left:1px solid #222;padding-left:16px;"><strong id="s-rate" style="color:#4caf50">&#8212;</strong>/A <span id="s-rate-note" style="color:#444;font-size:0.72rem"></span></span>
+    <span id="s-peers" style="border-left:1px solid #222;padding-left:16px;color:#555;font-size:0.78rem">peers: —</span>
   </div>
 
   <div id="register-box" style="display:none">
@@ -465,6 +466,52 @@
 </div>
 
 <script>
+// Peer discovery + failover
+const PEER_KEY = 'agora_peers';
+const PEER_TTL = 300000; // 5 min
+
+async function refreshPeers() {
+  try {
+    const r = await fetch('/federation/peers');
+    const d = await r.json();
+    localStorage.setItem(PEER_KEY, JSON.stringify({peers: d.peers, ts: Date.now()}));
+    const el = document.getElementById('s-peers');
+    if (el) el.textContent = 'peers: ' + d.peers.length;
+  } catch(e) {}
+}
+
+async function findLivePeer() {
+  const stored = localStorage.getItem(PEER_KEY);
+  if (!stored) return null;
+  const {peers} = JSON.parse(stored);
+  // Shuffle
+  const shuffled = peers.sort(() => Math.random() - 0.5);
+  for (const peer of shuffled) {
+    if (peer.public_url && !window.location.href.includes(peer.public_url.replace('http://',''))) {
+      try {
+        const r = await fetch(peer.public_url + '/health', {signal: AbortSignal.timeout(2000)});
+        if (r.ok) return peer.public_url;
+      } catch(e) {}
+    }
+  }
+  return null;
+}
+
+// On load: refresh peers, set up heartbeat check
+window.addEventListener('load', async () => {
+  await refreshPeers();
+  // Heartbeat: every 30s check if current node is still alive
+  setInterval(async () => {
+    try {
+      await fetch('/health', {signal: AbortSignal.timeout(3000)});
+    } catch(e) {
+      // Current node dead — find a live peer and redirect
+      const live = await findLivePeer();
+      if (live) window.location.href = live + '/ui';
+    }
+  }, 30000);
+});
+
 let KEY = localStorage.getItem('agora_key') || '';
 let ME = null;
 let ASSETS = [];

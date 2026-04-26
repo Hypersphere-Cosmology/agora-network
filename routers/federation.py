@@ -101,10 +101,39 @@ async def _gossip_loop():
             pass
 
 
+async def merkle_heartbeat_loop():
+    """Every 5 minutes, cross-verify merkle root with all known peers."""
+    import httpx
+    await asyncio.sleep(30)  # initial delay
+    while True:
+        await asyncio.sleep(300)
+        reg = load_registry()
+        for node_id, node in reg.get("nodes", {}).items():
+            peer_url = node.get("public_url", "")
+            if not peer_url:
+                continue
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    # Get our own merkle
+                    our = await client.get("http://localhost:8001/federation/merkle")
+                    our_root = our.json().get("merkle_root", "")
+                    # Verify against peer
+                    resp = await client.post(f"{peer_url}/federation/verify",
+                        json={"merkle_root": our_root})
+                    result = resp.json()
+                    if not result.get("match"):
+                        print(f"[merkle] MISMATCH with {node_id}: our={our_root[:16]}... their={result.get('our_root','?')[:16]}...")
+                    else:
+                        print(f"[merkle] ✅ {node_id} in sync")
+            except Exception:
+                pass  # peer unreachable, skip silently
+
+
 def start_gossip_task():
-    """Schedule the gossip loop in the current event loop."""
+    """Schedule the gossip loop and merkle heartbeat in the current event loop."""
     loop = asyncio.get_event_loop()
     loop.create_task(_gossip_loop())
+    loop.create_task(merkle_heartbeat_loop())
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +294,7 @@ def get_snapshot(since_id: int = 0, db: Session = Depends(get_db)):
                 "submitter_id": a.submitter_id, "avg_rating": a.avg_rating,
                 "rating_count": a.rating_count, "tokens_minted": a.tokens_minted,
                 "is_genesis": a.is_genesis, "parent_id": a.parent_id,
+                "content_hash": a.content_hash,
             }
             for a in assets
         ],
@@ -405,6 +435,37 @@ def get_shard_map(db: Session = Depends(get_db)):
         "shard_coverage_pct": round(coverage * 100, 2),
         "assignments": assignments,
     }
+
+
+@router.get("/any")
+async def any_redirect():
+    """Redirect to a random live peer's UI. Falls back to self if no peers live."""
+    import httpx
+    import random
+    from fastapi.responses import RedirectResponse
+
+    peers = get_all_peers()
+    self_url = NODE_1_INFO["public_url"]
+
+    # Try each peer (excluding self) with 2s timeout
+    live_peers = []
+    async with httpx.AsyncClient(timeout=2.0) as client:
+        for peer in peers:
+            peer_url = peer.get("public_url", "")
+            if not peer_url or peer_url == self_url:
+                continue
+            try:
+                r = await client.get(f"{peer_url}/health")
+                if r.status_code == 200:
+                    live_peers.append(peer_url)
+            except Exception:
+                pass
+
+    if live_peers:
+        chosen = random.choice(live_peers)
+        return RedirectResponse(url=f"{chosen}/ui", status_code=302)
+    else:
+        return RedirectResponse(url="/ui", status_code=302)
 
 
 @router.get("/my-shard")
