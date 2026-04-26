@@ -457,6 +457,29 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
         finally:
             db.close()
 
+    # Zombie threshold
+    if "zombie threshold" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_val = str(float(match.group(1)) / 100.0)
+            db = SessionLocal()
+            try:
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "zombie_threshold").first()
+                if row: row.value_text = new_val; db.commit()
+                print(f"[governance] Zombie threshold updated to {new_val} by proposal #{proposal.id}")
+            finally: db.close()
+
+    # Zombie removal hours
+    if "zombie removal hours" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)', winning_label)
+        if match:
+            db = SessionLocal()
+            try:
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "zombie_removal_hours").first()
+                if row: row.value_text = match.group(1); db.commit()
+                print(f"[governance] Zombie removal hours updated to {match.group(1)} by proposal #{proposal.id}")
+            finally: db.close()
+
 
 @router.get("/parameters")
 def get_parameters(db: Session = Depends(get_db)):
