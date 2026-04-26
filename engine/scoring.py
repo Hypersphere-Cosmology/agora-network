@@ -196,7 +196,7 @@ def recalculate_asset_mint(db: Session, asset_id: int, defer_user_scores: bool =
 
     # Update submitter balance
     if submitter and submitter_diff != 0:
-        submitter.token_balance = round(max(0.0, submitter.token_balance + submitter_diff), 6)  # floor at zero — no negative balances
+        submitter.token_balance = round(submitter.token_balance + submitter_diff, 6)
         db.add(TokenEvent(
             event_type="mint",
             user_id=submitter.id,

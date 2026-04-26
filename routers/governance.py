@@ -411,8 +411,40 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             from db import User as UserModel, ApiKey
             target = db.query(UserModel).filter(UserModel.handle == handle_to_remove).first()
             if target and handle_to_remove not in {"viralsatan", "ava"}:  # founders protected
+                from db import Asset as AssetModel, BankLedger, StorageConfig
                 # Revoke API keys
                 db.query(ApiKey).filter(ApiKey.user_id == target.id).delete()
+
+                # Handle debt: if negative balance, record as bank debit (debt owed to bank)
+                debt = target.token_balance if target.token_balance < 0 else 0.0
+
+                # Seize assets → transfer ownership to bank (submitter_id=0 = bank-owned)
+                # Mark seized assets as bank-owned by setting a special submitter tag
+                user_assets = db.query(AssetModel).filter(
+                    AssetModel.submitter_id == target.id,
+                    AssetModel.is_deleted == False
+                ).all()
+                seized_count = 0
+                for asset in user_assets:
+                    # Tag as bank-seized so marketplace can list them
+                    asset.tags = ((asset.tags or "") + ",bank-seized").strip(",")
+                    # Record in bank ledger: asset value = avg_rating (estimated)
+                    if asset.avg_rating and asset.avg_rating > 0:
+                        db.add(BankLedger(
+                            user_id=None,
+                            asset_id=asset.id,
+                            amount=asset.avg_rating,  # estimated asset value
+                            event_type="asset_seizure"
+                        ))
+                    seized_count += 1
+
+                # Transfer positive balance (if any) to bank as debt offset
+                if target.token_balance > 0:
+                    db.add(BankLedger(event_type="user_removal_balance_seized", amount=target.token_balance, note=f"Balance seized from @{handle_to_remove}"))
+                elif debt < 0:
+                    # Log the debt as a bank debit (negative ledger entry)
+                    db.add(BankLedger(event_type="user_removal_debt_absorbed", amount=debt, note=f"Debt absorbed from @{handle_to_remove}"))
+
                 # Zero out scores and balance
                 target.total_score = 0.0
                 target.submission_score = 0.0
@@ -421,7 +453,7 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
                 target.token_balance = 0.0
                 target.handle = f"[removed_{target.id}]"
                 db.commit()
-                print(f"[governance] User @{handle_to_remove} removed by proposal #{proposal.id}")
+                print(f"[governance] User @{handle_to_remove} removed. Assets seized: {seized_count}. Debt absorbed: {abs(debt):.4f} A.")
         finally:
             db.close()
 
