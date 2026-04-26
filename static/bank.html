@@ -185,15 +185,19 @@ load();
 </script>
 <script>
 (function() {
+  // Self-versioning: append ?v=HASH to all internal page links so cache always busts
   var VERSION_KEY = 'agora_version';
   fetch('/federation/version', {cache: 'no-store'})
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      var serverHash = d.codebase_hash || '';
+      var serverHash = (d.codebase_hash || '').slice(0,8);
       var localHash = localStorage.getItem(VERSION_KEY) || '';
       if (serverHash && localHash && serverHash !== localHash) {
         localStorage.setItem(VERSION_KEY, serverHash);
-        window.location.reload(true);
+        // Hard reload with version in URL
+        var url = new URL(window.location.href);
+        url.searchParams.set('v', serverHash);
+        window.location.replace(url.toString());
       } else if (serverHash) {
         localStorage.setItem(VERSION_KEY, serverHash);
       }

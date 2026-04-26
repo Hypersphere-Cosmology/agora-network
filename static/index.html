@@ -2178,11 +2178,13 @@ function copyRefLink(url) {
   fetch('/federation/version', {cache: 'no-store'})
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      var serverHash = d.codebase_hash || '';
+      var serverHash = (d.codebase_hash || '').slice(0,8);
       var localHash = localStorage.getItem(VERSION_KEY) || '';
       if (serverHash && localHash && serverHash !== localHash) {
         localStorage.setItem(VERSION_KEY, serverHash);
-        window.location.reload(true);
+        var url = new URL(window.location.href);
+        url.searchParams.set('v', serverHash);
+        window.location.replace(url.toString());
       } else if (serverHash) {
         localStorage.setItem(VERSION_KEY, serverHash);
       }
