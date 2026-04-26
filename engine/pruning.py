@@ -43,14 +43,21 @@ def check_and_warn(db: Session) -> dict:
     removed = []
     now = datetime.now(timezone.utc)
 
+    # Only warn ONE account at a time (oldest first) — max 1 removal per removal_hours cycle
+    unwarneds = [z for z in zombies if z.prune_warned_at is None]
+    if unwarneds and zombie_pct >= threshold:
+        # Check no one is already in the warning window
+        currently_warned = [z for z in zombies if z.prune_warned_at is not None]
+        if not currently_warned:
+            # Warn the oldest unwarnned account
+            target = unwarneds[0]  # already sorted by joined_at asc
+            target.prune_warned_at = now
+            warned.append(target.handle)
+            _send_warning_dm(db, target.handle, removal_hours)
+
     for z in zombies:
         if z.prune_warned_at is None:
-            # Not yet warned — only warn if threshold exceeded
-            if zombie_pct >= threshold:
-                z.prune_warned_at = now
-                warned.append(z.handle)
-                # Send DM warning from network (ava as operator)
-                _send_warning_dm(db, z.handle, removal_hours)
+            pass  # handled above
         else:
             # Already warned — check if deadline passed
             warned_at = z.prune_warned_at
