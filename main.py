@@ -71,6 +71,14 @@ def ui():
         "Expires": "0"
     })
 
+@app.get("/join", include_in_schema=False)
+def join():
+    return FileResponse("static/index.html", headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    })
+
 @app.get("/u/{handle}", include_in_schema=False)
 def user_profile(handle: str):
     return FileResponse("static/profile.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
@@ -109,6 +117,8 @@ def _seed_genesis():
             sean = User(handle="sean", display_name="Sean Myers", agent_type="human")
             db.add(sean)
             db.flush()
+        if not sean.referral_code:
+            sean.referral_code = "sean"
 
         if not db.query(ApiKey).filter(ApiKey.user_id == sean.id).first():
             raw = generate_api_key()
@@ -121,6 +131,8 @@ def _seed_genesis():
             ava = User(handle="ava", display_name="Ava", agent_type="agent")
             db.add(ava)
             db.flush()
+        if not ava.referral_code:
+            ava.referral_code = "ava"
 
         if not db.query(ApiKey).filter(ApiKey.user_id == ava.id).first():
             raw = generate_api_key()
@@ -189,6 +201,8 @@ def status(db: Session = Depends(get_db)):
     # Reference exchange rate (founder-declared, governance-adjustable)
     rate_row = db.query(StorageConfig).filter(StorageConfig.key == "usd_per_token").first()
     usd_per_token = float(rate_row.value_text) if rate_row and rate_row.value_text else 0.50
+    l1_row = db.query(StorageConfig).filter(StorageConfig.key == "referral_rate_l1").first()
+    l2_row = db.query(StorageConfig).filter(StorageConfig.key == "referral_rate_l2").first()
     return {
         "users": users_count,
         "assets": assets_count,
@@ -196,6 +210,8 @@ def status(db: Session = Depends(get_db)):
         "bank_balance": round(bank_balance, 6),
         "usd_per_token": usd_per_token,
         "rate_note": "Reference rate. Governance-adjustable by vote.",
+        "referral_rate_l1": float(l1_row.value_text) if l1_row else 0.05,
+        "referral_rate_l2": float(l2_row.value_text) if l2_row else 0.01,
     }
 
 

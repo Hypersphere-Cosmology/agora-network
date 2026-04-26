@@ -2,7 +2,7 @@
   "nodes": {
     "node_2": {
       "node_id": "node_2",
-      "operator_handle": "sean",
+      "operator_handle": "ava",
       "public_url": "http://68.39.46.12:8002",
       "codebase_hash": "b396e17b4e2c0b3fe79eb993fcf1101d6fe0f45b2d3e181b20943e2d9314b7bf",
       "registered_at": "2026-04-26T16:46:05.780589+00:00",

@@ -287,16 +287,47 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
 
 def _auto_execute(proposal: "Proposal", winning_label: str):
     """Auto-apply the result of known governance proposals."""
+    import re
+    from db import SessionLocal, StorageConfig as StorageConfigModel
     title_lower = proposal.title.lower()
 
     # Fee rate proposals: title contains "fee" and winning label is a percentage
     if "fee" in title_lower:
-        import re
         match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
         if match:
             new_rate = float(match.group(1)) / 100.0
             _config.set_fee_rate(new_rate)
             print(f"[governance] Fee rate updated to {new_rate*100:.2f}% by proposal #{proposal.id}")
+
+    # Referral rate L1 proposals
+    if "referral" in title_lower and "l1" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_rate = float(match.group(1)) / 100.0
+            db = SessionLocal()
+            try:
+                rate_row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "referral_rate_l1").first()
+                if rate_row:
+                    rate_row.value_text = str(new_rate)
+                    db.commit()
+                    print(f"[governance] Referral L1 rate updated to {new_rate*100:.2f}% by proposal #{proposal.id}")
+            finally:
+                db.close()
+
+    # Referral rate L2 proposals
+    if "referral" in title_lower and "l2" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_rate = float(match.group(1)) / 100.0
+            db = SessionLocal()
+            try:
+                rate_row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "referral_rate_l2").first()
+                if rate_row:
+                    rate_row.value_text = str(new_rate)
+                    db.commit()
+                    print(f"[governance] Referral L2 rate updated to {new_rate*100:.2f}% by proposal #{proposal.id}")
+            finally:
+                db.close()
 
 
 @router.get("/status")

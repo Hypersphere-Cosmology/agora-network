@@ -100,6 +100,8 @@ async function loadProfile(handle) {
     var user = await get('/users/' + handle);
     var allAssets = await get('/assets/');
     var allUsers = await get('/users/');
+    var referralInfo = null;
+    try { referralInfo = await get('/users/' + handle + '/referrals'); } catch(e) {}
 
     document.title = 'Agora — @' + user.handle;
 
@@ -144,6 +146,31 @@ async function loadProfile(handle) {
       html += '<span class="lb-tokens">' + Number(u.token_balance).toFixed(2) + ' A</span>';
       html += '</div>';
     });
+    html += '</div>';
+
+    // Referral section
+    html += '<div class="section-title">Referral Program</div>';
+    html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:24px;">';
+    var refLink = 'http://68.39.46.12:8001/join?ref=' + esc(user.handle);
+    html += '<div style="margin-bottom:12px;">';
+    html += '<div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Your Referral Link</div>';
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
+    html += '<code style="background:#111;border:1px solid #2a2a2a;border-radius:5px;padding:6px 10px;font-size:0.83rem;color:#7c6af7;flex:1;word-break:break-all;">' + refLink + '</code>';
+    html += '<button onclick="navigator.clipboard.writeText(\'' + refLink + '\').then(function(){this.textContent=\'Copied!\';setTimeout(function(){},1500);}.bind(this))" style="background:#7c6af7;color:#fff;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:0.78rem;white-space:nowrap;">Copy</button>';
+    html += '</div></div>';
+    if (referralInfo) {
+      html += '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:12px;">';
+      html += '<div><div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Referred Users</div>';
+      html += '<div style="font-size:1.4rem;font-weight:700;color:#fff;">' + referralInfo.count + '</div>';
+      if (referralInfo.referred && referralInfo.referred.length > 0) {
+        html += '<div style="font-size:0.75rem;color:#444;margin-top:4px;">' + referralInfo.referred.map(function(h){ return '@'+esc(h); }).join(', ') + '</div>';
+      }
+      html += '</div>';
+      html += '<div><div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Referral Earnings</div>';
+      html += '<div style="font-size:1.4rem;font-weight:700;color:#4caf50;">' + Number(referralInfo.referral_earnings).toFixed(4) + ' A</div></div>';
+      html += '</div>';
+    }
+    html += '<div style="font-size:0.78rem;color:#444;margin-top:12px;">Earn 5% of tokens minted by users you refer (L1), plus 1% from their referrals (L2).</div>';
     html += '</div>';
 
     // Assets

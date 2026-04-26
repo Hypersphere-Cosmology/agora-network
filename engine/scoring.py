@@ -6,7 +6,7 @@ Token mint calculation
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from db import User, Asset, Rating, TokenEvent, BankLedger
+from db import User, Asset, Rating, TokenEvent, BankLedger, StorageConfig
 from typing import List
 
 
@@ -131,17 +131,54 @@ def recalculate_asset_mint(db: Session, asset_id: int, defer_user_scores: bool =
 
     participation_rate = rater_count / eligible_raters
     new_submitter_total = round(avg * participation_rate, 6)
-    new_bank_total = round(avg * (1 - participation_rate), 6)
 
     # Delta from previous state — only credit/debit the difference
     submitter_diff = round(new_submitter_total - asset.tokens_minted, 6)
-    bank_diff = round(new_bank_total - asset.bank_minted, 6)
 
     asset.tokens_minted = new_submitter_total
+
+    # Get referral rates from StorageConfig
+    l1_row = db.query(StorageConfig).filter(StorageConfig.key == "referral_rate_l1").first()
+    l2_row = db.query(StorageConfig).filter(StorageConfig.key == "referral_rate_l2").first()
+    l1_rate = float(l1_row.value_text) if l1_row and l1_row.value_text else 0.05
+    l2_rate = float(l2_row.value_text) if l2_row and l2_row.value_text else 0.01
+
+    # Find referral chain
+    submitter = db.query(User).filter(User.id == asset.submitter_id).first()
+    l1_ref = db.query(User).filter(User.handle == submitter.referred_by).first() if (submitter and submitter.referred_by) else None
+    l2_ref = db.query(User).filter(User.handle == l1_ref.referred_by).first() if (l1_ref and l1_ref.referred_by) else None
+
+    # Compute referral payouts from submitter's new total (proportional to diff)
+    # Only pay when submitter_diff > 0 (new mint, not clawback)
+    l1_payout = round(submitter_diff * l1_rate, 6) if (l1_ref and submitter_diff > 0) else 0.0
+    l2_payout = round(submitter_diff * l2_rate, 6) if (l2_ref and submitter_diff > 0) else 0.0
+
+    if l1_ref and l1_payout > 0:
+        l1_ref.token_balance = round(l1_ref.token_balance + l1_payout, 6)
+        db.add(TokenEvent(
+            event_type="referral_l1",
+            user_id=l1_ref.id,
+            asset_id=asset_id,
+            amount=l1_payout,
+            note=f"referral from {submitter.handle if submitter else '?'}"
+        ))
+
+    if l2_ref and l2_payout > 0:
+        l2_ref.token_balance = round(l2_ref.token_balance + l2_payout, 6)
+        db.add(TokenEvent(
+            event_type="referral_l2",
+            user_id=l2_ref.id,
+            asset_id=asset_id,
+            amount=l2_payout,
+            note=f"referral l2 from {submitter.handle if submitter else '?'}"
+        ))
+
+    # Bank gets remainder: pool - submitter_share - referral_payouts
+    new_bank_total = round(avg * (1 - participation_rate) - l1_payout - l2_payout, 6)
+    bank_diff = round(new_bank_total - asset.bank_minted, 6)
     asset.bank_minted = new_bank_total
 
     # Update submitter balance
-    submitter = db.query(User).filter(User.id == asset.submitter_id).first()
     if submitter and submitter_diff != 0:
         submitter.token_balance = round(submitter.token_balance + submitter_diff, 6)
         db.add(TokenEvent(

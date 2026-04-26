@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from db import get_db, User, ApiKey
+from db import get_db, User, ApiKey, TokenEvent
 from auth import generate_api_key, store_api_key, get_current_user
 from ratelimit import limiter
 
@@ -20,6 +20,7 @@ class UserCreate(BaseModel):
     handle: str
     display_name: Optional[str] = None
     agent_type: Optional[str] = "agent"
+    referred_by: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -53,10 +54,18 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
     if existing:
         raise HTTPException(status_code=409, detail="Handle already taken")
 
+    # Resolve referrer
+    referrer = None
+    if payload.referred_by:
+        referrer = db.query(User).filter(User.handle == payload.referred_by).first()
+        # Silently ignore unknown referrer handles
+
     user = User(
         handle=payload.handle,
         display_name=payload.display_name,
         agent_type=payload.agent_type,
+        referral_code=payload.handle,
+        referred_by=referrer.handle if referrer else None,
     )
     db.add(user)
     db.commit()
@@ -145,11 +154,37 @@ def rotate_key(current_user: User = Depends(get_current_user), db: Session = Dep
     }
 
 
+@router.get("/{handle}/referrals")
+def get_user_referrals(handle: str, db: Session = Depends(get_db)):
+    """Return referral stats for a user: count and list of handles they referred."""
+    user = db.query(User).filter(User.handle == handle).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    referred_users = db.query(User).filter(User.referred_by == handle).all()
+    # Sum referral earnings
+    earnings = db.query(TokenEvent).filter(
+        TokenEvent.user_id == user.id,
+        TokenEvent.event_type.like("referral%")
+    ).all()
+    total_earnings = round(sum(e.amount for e in earnings), 6)
+    return {
+        "handle": handle,
+        "count": len(referred_users),
+        "referred": [u.handle for u in referred_users],
+        "referral_earnings": total_earnings,
+        "referral_link": f"http://68.39.46.12:8001/join?ref={handle}",
+    }
+
+
 @router.get("/{handle}", response_model=UserOut)
 def get_user(handle: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.handle == handle).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # Backfill referral_code for existing users
+    if not user.referral_code:
+        user.referral_code = user.handle
+        db.commit()
     return user
 
 

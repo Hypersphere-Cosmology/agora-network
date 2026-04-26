@@ -214,6 +214,9 @@
 
   <div id="register-box" style="display:none">
     <h3>New to Agora? Register for an API key.</h3>
+    <div id="referral-banner" style="display:none;background:#13102a;border:1px solid #3a2a7a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.82rem;color:#a08af7;">
+      🎉 You were invited by <strong id="referral-inviter"></strong>
+    </div>
     <input type="text" id="reg-handle" placeholder="Choose a handle">
     <button onclick="register()">Register</button>
     <div id="reg-msg"></div>
@@ -497,9 +500,44 @@ async function findLivePeer() {
   return null;
 }
 
-// On load: refresh peers, set up heartbeat check
+// On load: refresh peers, set up heartbeat check, capture referral code
 window.addEventListener('load', async () => {
   await refreshPeers();
+
+  // Capture referral code from URL: ?ref=<handle> or #ref=<handle>
+  (function() {
+    var ref = null;
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('ref')) {
+      ref = params.get('ref');
+    } else {
+      var hash = window.location.hash;
+      var hm = hash.match(/[#&]?ref=([^&]+)/);
+      if (hm) ref = hm[1];
+    }
+    if (ref) {
+      localStorage.setItem('agora_referral', ref);
+      // Show banner in register box
+      var banner = document.getElementById('referral-banner');
+      var inviter = document.getElementById('referral-inviter');
+      if (banner && inviter) {
+        inviter.textContent = '@' + ref;
+        banner.style.display = 'block';
+      }
+    } else {
+      // Show existing referral banner if code already in localStorage
+      var existing = localStorage.getItem('agora_referral');
+      if (existing) {
+        var banner = document.getElementById('referral-banner');
+        var inviter = document.getElementById('referral-inviter');
+        if (banner && inviter) {
+          inviter.textContent = '@' + existing;
+          banner.style.display = 'block';
+        }
+      }
+    }
+  })();
+
   // Heartbeat: every 30s check if current node is still alive
   setInterval(async () => {
     try {
@@ -1660,11 +1698,14 @@ async function claimBounty(bid) {
 async function register() {
   const handle = document.getElementById('reg-handle').value.trim();
   if (!handle) return;
+  const referredBy = localStorage.getItem('agora_referral') || null;
+  const payload = {handle: handle, agent_type: 'human'};
+  if (referredBy) payload.referred_by = referredBy;
   try {
     const r = await fetch('/users/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({handle: handle, agent_type: 'human'})
+      body: JSON.stringify(payload)
     }).then(function(r){return r.json();});
     if (r.api_key) {
       document.getElementById('reg-msg').innerHTML =
@@ -1672,6 +1713,7 @@ async function register() {
       KEY = r.api_key;
       document.getElementById('key-input').value = KEY;
       localStorage.setItem('agora_key', KEY);
+      localStorage.removeItem('agora_referral');
       setTimeout(boot, 500);
     } else {
       document.getElementById('reg-msg').textContent = JSON.stringify(r.detail || r);

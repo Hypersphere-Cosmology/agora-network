@@ -5,7 +5,7 @@ SQLAlchemy + SQLite
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Float, Boolean,
-    DateTime, ForeignKey, Text, UniqueConstraint
+    DateTime, ForeignKey, Text, UniqueConstraint, text
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import datetime, timezone
@@ -42,6 +42,9 @@ class User(Base):
     rater_score = Column(Float, default=0.0)
     trade_score = Column(Float, default=0.0)
     total_score = Column(Float, default=0.0)       # 0-30
+
+    referred_by = Column(String, nullable=True)    # handle of who referred this user
+    referral_code = Column(String, nullable=True)  # their own referral code (= their handle)
 
     assets = relationship("Asset", back_populates="submitter")
     ratings_given = relationship("Rating", back_populates="rater")
@@ -236,6 +239,25 @@ class PlagiarismFlag(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+
+    # Safe migrations for SQLite (ADD COLUMN if not exists)
+    with engine.connect() as conn:
+        for col, coltype in [("referred_by", "VARCHAR"), ("referral_code", "VARCHAR")]:
+            try:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {coltype}"))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+
+    # Seed referral rates into StorageConfig
+    db = SessionLocal()
+    try:
+        for key, val in [("referral_rate_l1", "0.05"), ("referral_rate_l2", "0.01")]:
+            if not db.query(StorageConfig).filter(StorageConfig.key == key).first():
+                db.add(StorageConfig(key=key, value_text=val))
+        db.commit()
+    finally:
+        db.close()
 
 
 def get_db():
