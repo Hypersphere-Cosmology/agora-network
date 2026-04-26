@@ -320,6 +320,15 @@ class StorageConfig(Base):
     updated_at = Column(DateTime, default=utcnow)
 
 
+class ShardMap(Base):
+    __tablename__ = "shard_map"
+
+    id = Column(Integer, primary_key=True)
+    asset_content_hash = Column(String, index=True)   # the asset's content_hash
+    responsible_node_ids = Column(String)               # JSON array of node_ids
+    updated_at = Column(DateTime, default=utcnow)
+
+
 class TokenPurchase(Base):
     __tablename__ = "token_purchases"
 

@@ -23,6 +23,9 @@ from routers import users, assets, marketplace, governance, bank, sim, notificat
 async def lifespan(app: FastAPI):
     init_db()
     _seed_genesis()
+    # Start gossip background task
+    from routers.federation import start_gossip_task
+    start_gossip_task()
     yield
 
 

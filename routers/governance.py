@@ -15,9 +15,17 @@ from notifications import notify
 from engine.scoring import recalculate_asset_mint
 
 MIN_SCORE_TO_VOTE = 10.0   # lowered from 20 — network too new for 20 threshold
-QUORUM_OVERRIDE = 1.0     # 100% until founders lower it via governance
+QUORUM_OVERRIDE = 0.95    # 95% quorum required
 
 FOUNDER_HANDLES = {"sean", "ava"}  # veto control
+
+FOUNDER_SUNSET_THRESHOLD = 100  # founders lose special close power at 100 users
+
+
+def founders_active(db: Session) -> bool:
+    """Returns True if founder power is still active (< 100 users)."""
+    user_count = db.query(User).count()
+    return user_count < FOUNDER_SUNSET_THRESHOLD
 
 router = APIRouter(prefix="/governance", tags=["governance"])
 
@@ -216,11 +224,19 @@ def close_proposal(proposal_id: int, closer_handle: str, db: Session = Depends(g
     distinct_voters = db.query(func.count(distinct(Vote.user_id))).filter(
         Vote.proposal_id == proposal_id).scalar()
 
-    if eligible_voters > 0 and (distinct_voters / eligible_voters) < proposal.quorum:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Quorum not met ({distinct_voters}/{eligible_voters} voters, need {proposal.quorum*100:.0f}%)"
-        )
+    is_founder = closer.handle in FOUNDER_HANDLES
+    quorum_fraction = distinct_voters / eligible_voters if eligible_voters > 0 else 0.0
+    quorum_ok = quorum_fraction >= proposal.quorum
+
+    if not quorum_ok:
+        # Founders can bypass quorum only while founders_active
+        if is_founder and founders_active(db):
+            pass  # founder override while < 100 users
+        else:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Quorum not met ({distinct_voters}/{eligible_voters} voters, need {proposal.quorum*100:.0f}%)"
+            )
 
     # Ranked choice: lowest rank_total wins
     # Only consider options that received at least one vote
@@ -283,27 +299,63 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             print(f"[governance] Fee rate updated to {new_rate*100:.2f}% by proposal #{proposal.id}")
 
 
-@router.post("/quorum")
-def set_quorum(new_quorum: float, db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
-    """Founders only — manually adjust the global quorum override."""
-    global QUORUM_OVERRIDE
-    if current_user.handle not in FOUNDER_HANDLES:
-        raise HTTPException(status_code=403, detail="Founders only")
-    if not (0.0 < new_quorum <= 1.0):
-        raise HTTPException(status_code=422, detail="Quorum must be between 0.01 and 1.0")
-    QUORUM_OVERRIDE = new_quorum
-    return {"ok": True, "quorum": QUORUM_OVERRIDE, "set_by": current_user.handle}
+@router.get("/status")
+def governance_status(db: Session = Depends(get_db)):
+    """Current governance parameters and founder sunset status."""
+    user_count = db.query(User).count()
+    active = founders_active(db)
+    return {
+        "quorum_required": QUORUM_OVERRIDE,
+        "min_score_to_vote": MIN_SCORE_TO_VOTE,
+        "founder_sunset_threshold": FOUNDER_SUNSET_THRESHOLD,
+        "founders_active": active,
+        "user_count": user_count,
+        "users_until_sunset": max(0, FOUNDER_SUNSET_THRESHOLD - user_count),
+    }
 
 
-@router.post("/min-score")
-def set_min_score(min_score: float, db: Session = Depends(get_db),
-                  current_user: User = Depends(get_current_user)):
-    """Founders only — adjust minimum score required to vote/propose."""
-    global MIN_SCORE_TO_VOTE
-    if current_user.handle not in FOUNDER_HANDLES:
-        raise HTTPException(status_code=403, detail="Founders only")
-    if min_score < 0:
-        raise HTTPException(status_code=422, detail="Min score cannot be negative")
-    MIN_SCORE_TO_VOTE = min_score
-    return {"ok": True, "min_score_to_vote": MIN_SCORE_TO_VOTE, "set_by": current_user.handle}
+@router.get("/proposals/{proposal_id}/result")
+def get_proposal_result(proposal_id: int, db: Session = Depends(get_db)):
+    """
+    Deterministic result computation — any node can call this.
+    Returns the winner based on current votes without closing.
+    """
+    proposal = db.query(Proposal).filter(Proposal.id == proposal_id).first()
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    from sqlalchemy import func, distinct
+    eligible_voters = db.query(User).filter(User.total_score >= MIN_SCORE_TO_VOTE).count()
+    distinct_voters = db.query(func.count(distinct(Vote.user_id))).filter(
+        Vote.proposal_id == proposal_id).scalar()
+
+    quorum_met = eligible_voters > 0 and (distinct_voters / eligible_voters) >= proposal.quorum
+
+    voted_options = [o for o in proposal.options if o.vote_count > 0]
+    if not voted_options:
+        voted_options = proposal.options
+
+    winner = None
+    if voted_options:
+        min_total = min(o.rank_total for o in voted_options)
+        leaders = [o for o in voted_options if o.rank_total == min_total]
+        if len(leaders) == 1:
+            winner = leaders[0].label
+        else:
+            winner = "TIE"
+
+    return {
+        "proposal_id": proposal_id,
+        "title": proposal.title,
+        "is_closed": proposal.is_closed,
+        "winning_option": proposal.winning_option if proposal.is_closed else winner,
+        "is_deterministic": True,
+        "eligible_voters": eligible_voters,
+        "distinct_voters": distinct_voters,
+        "quorum_required": proposal.quorum,
+        "quorum_met": quorum_met,
+        "options": [
+            {"id": o.id, "label": o.label, "vote_count": o.vote_count, "rank_total": o.rank_total}
+            for o in proposal.options
+        ],
+    }

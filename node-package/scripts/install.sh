@@ -7,7 +7,7 @@
 
 set -e
 
-EXPECTED_HASH="245333fa6be5fd95cdf117282dd28b118cb59feec2242d2611f9d35ef62c998c"
+EXPECTED_HASH="b396e17b4e2c0b3fe79eb993fcf1101d6fe0f45b2d3e181b20943e2d9314b7bf"
 AGORA_DIR="$HOME/agora-node"
 
 # ── 1. Find a live node ──────────────────────────────────────────────────────
@@ -25,7 +25,22 @@ find_live_node() {
         echo "$seed"
         return 0
     fi
-    # Ask the seed for its peer list, try each
+    # Try /federation/peers first (gossip-aware endpoint)
+    PEERS=$(curl -sf "$seed/federation/peers" 2>/dev/null \
+        | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for n in d.get('peers', []):
+    url = n.get('public_url','')
+    if url: print(url)
+" 2>/dev/null)
+    for peer in $PEERS; do
+        if curl -sf "$peer/health" > /dev/null 2>&1; then
+            echo "$peer"
+            return 0
+        fi
+    done
+    # Fall back to /federation/nodes
     PEERS=$(curl -sf "$seed/federation/nodes" 2>/dev/null \
         | python3 -c "
 import sys, json
@@ -111,18 +126,26 @@ echo "   ⚠️  SAVE THIS KEY — it will not be shown again"
 read -p "Your node's public URL (e.g. http://1.2.3.4:8002): " MY_URL
 read -p "Your node ID (e.g. node_2): " NODE_ID
 
-curl -s -X POST "$LIVE_NODE/federation/register" \
+REG_RESULT=$(curl -s -X POST "$LIVE_NODE/federation/register" \
     -H "Content-Type: application/json" \
     -d "{
         \"node_id\": \"$NODE_ID\",
         \"operator_handle\": \"$HANDLE\",
         \"public_url\": \"$MY_URL\",
         \"codebase_hash\": \"$ACTUAL_HASH\"
-    }" | python3 -c "
+    }")
+
+echo "$REG_RESULT" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 print(f'✅ {d.get(\"message\", \"Registered\")}')
 print(f'   Network size: {d.get(\"network_size\", \"?\")} nodes')
+# Save peers list so this node knows the full network
+peers = d.get('peers', [])
+if peers:
+    with open('peers.json', 'w') as f:
+        json.dump({'peers': peers}, f, indent=2)
+    print(f'   Saved {len(peers)} peers to peers.json')
 " 2>/dev/null
 
 # ── 8. Sync state from network ───────────────────────────────────────────────
