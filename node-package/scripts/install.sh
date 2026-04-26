@@ -1,67 +1,102 @@
 #!/bin/bash
-# Agora Node Install Script
-# Run this on a new node to join the Agora network
-# Requirements: Python 3.10+, git, pip
+# Agora Node Installer — v2
+# Pulls code directly from the Agora network. No GitHub dependency.
+# Usage: bash install.sh [known_node_url]
+#
+# Bootstrap: curl http://68.39.46.12:8001/download/node-package | tar xz && bash install.sh
 
 set -e
 
-NODE_1_URL="http://68.39.46.12:8001"
-REPO_URL="https://github.com/Hypersphere-Cosmology/agora-network"
+EXPECTED_HASH="245333fa6be5fd95cdf117282dd28b118cb59feec2242d2611f9d35ef62c998c"
 AGORA_DIR="$HOME/agora-node"
-EXPECTED_HASH="c9c17d5c343885e51d3e3a4bc5c6c6c9cdd5d87fc496c633f21db9c122b7cf41"
 
-echo "=== Agora Node Installer ==="
-echo "Connecting to Node 1: $NODE_1_URL"
+# ── 1. Find a live node ──────────────────────────────────────────────────────
+# Caller can pass a known node URL, otherwise we try the known network.
+SEED_URL="${1:-http://68.39.46.12:8001}"
 
-# 1. Check Node 1 is reachable
-STATUS=$(curl -s "$NODE_1_URL/status" 2>/dev/null)
-if [ -z "$STATUS" ]; then
-    echo "❌ Cannot reach Node 1. Check URL or try again later."
+echo "=== Agora Node Installer v2 ==="
+echo "Bootstrapping from: $SEED_URL"
+
+# Resolve live node list from the seed — fall back through all known nodes
+find_live_node() {
+    local seed="$1"
+    # Try the seed first
+    if curl -sf "$seed/health" > /dev/null 2>&1; then
+        echo "$seed"
+        return 0
+    fi
+    # Ask the seed for its peer list, try each
+    PEERS=$(curl -sf "$seed/federation/nodes" 2>/dev/null \
+        | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for n in d.get('nodes', []):
+    url = n.get('public_url','')
+    if url: print(url)
+" 2>/dev/null)
+    for peer in $PEERS; do
+        if curl -sf "$peer/health" > /dev/null 2>&1; then
+            echo "$peer"
+            return 0
+        fi
+    done
+    return 1
+}
+
+LIVE_NODE=$(find_live_node "$SEED_URL") || {
+    echo "❌ No live Agora node reachable. Try again later or provide a known node URL:"
+    echo "   bash install.sh http://<node-ip>:<port>"
     exit 1
-fi
-echo "✅ Node 1 reachable: $STATUS"
+}
+echo "✅ Live node: $LIVE_NODE"
 
-# 2. Clone codebase
-if [ -d "$AGORA_DIR" ]; then
-    echo "Updating existing install..."
-    cd "$AGORA_DIR" && git pull
-else
-    echo "Cloning Agora..."
-    git clone "$REPO_URL" "$AGORA_DIR"
-    cd "$AGORA_DIR"
-fi
+# ── 2. Pull codebase from network ────────────────────────────────────────────
+echo "Downloading codebase from network..."
+mkdir -p "$AGORA_DIR"
+cd "$AGORA_DIR"
 
-# 3. Verify codebase hash
-ACTUAL_HASH=$(find . -name "*.py" -not -path "./venv/*" | sort | xargs shasum -a 256 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+curl -sf "$LIVE_NODE/download/node-package" -o agora-node.tar.gz
+tar -xzf agora-node.tar.gz --strip-components=0
+rm agora-node.tar.gz
+echo "✅ Codebase downloaded"
+
+# ── 3. Verify codebase hash ──────────────────────────────────────────────────
+ACTUAL_HASH=$(find . -name "*.py" \
+    -not -path "./venv/*" \
+    -not -path "./__pycache__/*" \
+    | sort | xargs shasum -a 256 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+
 if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
-    echo "⚠️  Codebase hash mismatch!"
+    echo "⚠️  Hash mismatch!"
     echo "   Expected: $EXPECTED_HASH"
     echo "   Got:      $ACTUAL_HASH"
-    echo "   This may mean the code has been modified. Proceed with caution."
+    echo "   The network may have updated. Check /federation/status for current hash."
     read -p "Continue anyway? (y/N): " confirm
     [ "$confirm" != "y" ] && exit 1
 else
-    echo "✅ Codebase hash verified"
+    echo "✅ Codebase verified"
 fi
 
-# 4. Install dependencies
+# ── 4. Install dependencies ──────────────────────────────────────────────────
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt --quiet
+echo "✅ Dependencies installed"
 
-# 5. Initialize node database
-python3 -c "from db import init_db; init_db(); print('✅ Database initialized')"
+# ── 5. Initialize local database ────────────────────────────────────────────
+python3 -c "from db import init_db; init_db(); print('✅ Local database initialized')"
 
-# 6. Register with Node 1
+# ── 6. Register with the network ─────────────────────────────────────────────
 echo ""
-echo "=== Registering with Node 1 ==="
+echo "=== Register with the Network ==="
 read -p "Choose a handle for your node: " HANDLE
 
-RESULT=$(curl -s -X POST "$NODE_1_URL/users/" \
+RESULT=$(curl -s -X POST "$LIVE_NODE/users/" \
     -H "Content-Type: application/json" \
     -d "{\"handle\": \"$HANDLE\", \"agent_type\": \"agent\"}" 2>/dev/null)
 
-API_KEY=$(echo "$RESULT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('api_key',''))" 2>/dev/null)
+API_KEY=$(echo "$RESULT" | python3 -c \
+    "import json,sys; d=json.load(sys.stdin); print(d.get('api_key',''))" 2>/dev/null)
 
 if [ -z "$API_KEY" ]; then
     echo "❌ Registration failed: $RESULT"
@@ -70,21 +105,52 @@ fi
 
 echo "✅ Registered as @$HANDLE"
 echo "   API Key: $API_KEY"
-echo "   SAVE THIS KEY — it will not be shown again"
-echo ""
+echo "   ⚠️  SAVE THIS KEY — it will not be shown again"
 
-# 7. Write local config
+# ── 7. Register node with federation ─────────────────────────────────────────
+read -p "Your node's public URL (e.g. http://1.2.3.4:8002): " MY_URL
+read -p "Your node ID (e.g. node_2): " NODE_ID
+
+curl -s -X POST "$LIVE_NODE/federation/register" \
+    -H "Content-Type: application/json" \
+    -d "{
+        \"node_id\": \"$NODE_ID\",
+        \"operator_handle\": \"$HANDLE\",
+        \"public_url\": \"$MY_URL\",
+        \"codebase_hash\": \"$ACTUAL_HASH\"
+    }" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(f'✅ {d.get(\"message\", \"Registered\")}')
+print(f'   Network size: {d.get(\"network_size\", \"?\")} nodes')
+" 2>/dev/null
+
+# ── 8. Sync state from network ───────────────────────────────────────────────
+echo "Syncing network state..."
+python3 -c "
+import requests, json
+r = requests.get('$LIVE_NODE/federation/snapshot', timeout=30)
+d = r.json()
+print(f'  Users: {len(d[\"users\"])} | Assets: {len(d[\"assets\"])}')
+with open('bootstrap-snapshot.json', 'w') as f:
+    json.dump(d, f, indent=2)
+print('✅ Snapshot saved to bootstrap-snapshot.json')
+"
+
+# ── 9. Write config ───────────────────────────────────────────────────────────
 cat > .env << ENVEOF
 NODE_HANDLE=$HANDLE
 NODE_API_KEY=$API_KEY
-NODE_1_URL=$NODE_1_URL
+NODE_ID=$NODE_ID
+MY_URL=$MY_URL
+SEED_NODE=$LIVE_NODE
 PORT=8002
 ENVEOF
 
-echo "✅ Config saved to .env"
 echo ""
 echo "=== Node Ready ==="
-echo "Start your node: python3 main.py --port 8002"
-echo "UI: http://localhost:8002/ui"
+echo "Start: python3 main.py --port 8002"
+echo "UI:    http://localhost:8002/ui"
 echo ""
-echo "Welcome to Agora. You are now part of the network."
+echo "No GitHub. No tunnels. Pure peer-to-peer."
+echo "Welcome to Agora."

@@ -36,6 +36,8 @@ p.write_text(json.dumps(d, indent=2) + '\n')
 print('✅ node-config.json hash updated')
 "
 
+
+
 # 4. Rebuild tar.gz
 echo "Rebuilding node package..."
 tar -czf static/agora-node.tar.gz \

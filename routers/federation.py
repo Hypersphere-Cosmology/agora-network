@@ -110,7 +110,7 @@ def list_nodes():
     nodes.insert(0, {
         "node_id": "node_1",
         "operator_handle": "sean",
-        "public_url": "https://backed-labels-server-sporting.trycloudflare.com",
+        "public_url": "http://68.39.46.12:8001",
         "status": "online",
         "is_founder": True,
     })

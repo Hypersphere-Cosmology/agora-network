@@ -1,15 +1,18 @@
 {
   "agora_version": "0.1.0",
   "ruleset": "v18",
-  "node_1_url": "http://68.39.46.12:8001",
-  "codebase_hash": "c9c17d5c343885e51d3e3a4bc5c6c6c9cdd5d87fc496c633f21db9c122b7cf41",
+  "bootstrap_nodes": [
+    "http://68.39.46.12:8001"
+  ],
+  "code_source": "network",
+  "code_endpoint": "/download/node-package",
+  "codebase_hash": "245333fa6be5fd95cdf117282dd28b118cb59feec2242d2611f9d35ef62c998c",
   "founder_node": "node_1",
   "founder_handle": "sean",
-  "node_api_base": "http://68.39.46.12:8001",
   "join_requirements": {
     "must_match_codebase_hash": true,
     "must_register_with_node_1": true,
     "governance_code_changes_disabled": true
   },
-  "port": 8001
+  "note": "Code is pulled from the network itself. No GitHub dependency. If Node 1 is unreachable, any live node can bootstrap a new install."
 }
