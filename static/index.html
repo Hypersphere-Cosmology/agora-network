@@ -213,7 +213,7 @@
   </div>
 
   <div id="register-box" style="display:none">
-    <h3>New to Agora? Register for an API key.</h3>
+    <h3>New to Agora? Create your account below.</h3>
     <div id="referral-banner" style="display:none;background:#13102a;border:1px solid #3a2a7a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.82rem;color:#a08af7;">
       🎉 You were invited to Agora
     </div>
@@ -565,7 +565,18 @@ var USD_PER_TOKEN = 1.00;
 let CURRENT_ID = null;
 let SCORE = null;
 
-if (KEY) { document.getElementById('key-input').value = KEY; boot(); }
+if (KEY) {
+  document.getElementById('key-input').value = KEY;
+  boot();
+} else if (window.location.pathname.includes('/join') || window.location.search.includes('join=1')) {
+  // New user landing on /join — show register box immediately
+  document.getElementById('register-box').style.display = 'block';
+  document.getElementById('key-input').parentElement && (function(){
+    var kw = document.getElementById('key-input').closest('div[style]');
+    // just load assets without requiring key
+  })();
+  loadAssets && loadAssets();
+}
 
 function toggleSubmitForm() {
   var f = document.getElementById('submit-form');
@@ -810,6 +821,14 @@ function connect() {
 
 async function boot() {
   await loadStatus();
+  if (!KEY) {
+    // No key — show register box if on /join, otherwise show key-paste box
+    if (window.location.pathname.includes('/join') || window.location.search.includes('join=1')) {
+      document.getElementById('register-box').style.display = 'block';
+    }
+    loadAssets();
+    return;
+  }
   try {
     ME = await api('/users/me');
     var usdVal = (ME.token_balance * USD_PER_TOKEN).toFixed(2);
@@ -1707,6 +1726,60 @@ async function claimBounty(bid) {
   }
 }
 
+async function getDeviceFingerprint() {
+  const components = [];
+
+  // Screen
+  components.push(screen.width + 'x' + screen.height);
+  components.push(screen.colorDepth);
+  components.push(window.devicePixelRatio || 1);
+
+  // Timezone
+  components.push(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  // Language
+  components.push(navigator.language || '');
+  components.push(navigator.languages ? navigator.languages.join(',') : '');
+
+  // Platform
+  components.push(navigator.platform || '');
+
+  // Canvas fingerprint
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#f60';
+    ctx.fillRect(125, 1, 62, 20);
+    ctx.fillStyle = '#069';
+    ctx.fillText('Agora\uD83E\uDD80', 2, 15);
+    ctx.fillStyle = 'rgba(102,204,0,0.7)';
+    ctx.fillText('Agora\uD83E\uDD80', 4, 17);
+    components.push(canvas.toDataURL());
+  } catch(e) {}
+
+  // WebGL
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (gl) {
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) {
+        components.push(gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL));
+        components.push(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+      }
+    }
+  } catch(e) {}
+
+  // Hash it
+  const raw = components.join('|');
+  const encoder = new TextEncoder();
+  const data = encoder.encode(raw);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function register() {
   const handle = document.getElementById('reg-handle').value.trim();
   if (!handle) return;
@@ -1714,6 +1787,8 @@ async function register() {
   const payload = {handle: handle, agent_type: 'human'};
   if (referredBy) payload.referred_by = referredBy;
   try {
+    const fingerprint = await getDeviceFingerprint();
+    payload.fingerprint = fingerprint;
     const r = await fetch('/users/', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -1721,14 +1796,21 @@ async function register() {
     }).then(function(r){return r.json();});
     if (r.api_key) {
       document.getElementById('reg-msg').innerHTML =
-        '<strong style="color:#4caf50">Done!</strong> Your key: <code>' + r.api_key + '</code>';
+        '<strong style="color:#4caf50">Done!</strong> Your key: <code>' + r.api_key + '</code>' +
+        '<br><span style="color:#aaa;font-size:0.82rem">Save this key — it\'s your password. You\'ll paste it here each time you log in.</span>';
       KEY = r.api_key;
       document.getElementById('key-input').value = KEY;
       localStorage.setItem('agora_key', KEY);
       localStorage.removeItem('agora_referral_code');
       setTimeout(boot, 500);
     } else {
-      document.getElementById('reg-msg').textContent = JSON.stringify(r.detail || r);
+      const detail = r.detail || JSON.stringify(r);
+      if (typeof detail === 'string' && detail.includes('already exists from this device')) {
+        document.getElementById('reg-msg').innerHTML =
+          '<span style="color:#f66">An account from this device already exists. Use your existing API key to log in.</span>';
+      } else {
+        document.getElementById('reg-msg').textContent = detail;
+      }
     }
   } catch(e) { document.getElementById('reg-msg').textContent = e.message; }
 }

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from db import get_db, User, ApiKey, TokenEvent
+from db import get_db, User, ApiKey, TokenEvent, DeviceFingerprint, StorageConfig
 from auth import generate_api_key, store_api_key, get_current_user
 from ratelimit import limiter
 
@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
     display_name: Optional[str] = None
     agent_type: Optional[str] = "agent"
     referred_by: Optional[str] = None
+    fingerprint: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -55,6 +56,20 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
     if existing:
         raise HTTPException(status_code=409, detail="Handle already taken")
 
+    # Check device fingerprint requirement
+    fp_required_row = db.query(StorageConfig).filter(StorageConfig.key == "require_device_fingerprint").first()
+    fp_required = fp_required_row and fp_required_row.value_text == "1"
+
+    if fp_required:
+        if not payload.fingerprint:
+            raise HTTPException(status_code=422, detail="Device fingerprint required for registration.")
+        # Check if fingerprint already registered
+        existing_fp = db.query(DeviceFingerprint).filter(
+            DeviceFingerprint.fingerprint_hash == payload.fingerprint
+        ).first()
+        if existing_fp:
+            raise HTTPException(status_code=409, detail="An account already exists from this device.")
+
     # Resolve referrer — accept opaque referral_code as input
     referrer = None
     if payload.referred_by:
@@ -74,6 +89,16 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
 
     raw_key = generate_api_key()
     store_api_key(db, user.id, raw_key)
+
+    # Store device fingerprint if provided
+    if payload.fingerprint:
+        fp = DeviceFingerprint(
+            fingerprint_hash=payload.fingerprint,
+            user_id=user.id,
+            user_agent=request.headers.get("user-agent", "")[:500]
+        )
+        db.add(fp)
+        db.commit()
 
     # Recalculate all asset mints — new user increases eligible_raters denominator
     # so all existing participation rates drop; this re-floors and re-mints correctly

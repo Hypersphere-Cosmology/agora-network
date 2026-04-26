@@ -252,7 +252,11 @@ def init_db():
     # Seed referral rates into StorageConfig
     db = SessionLocal()
     try:
-        for key, val in [("referral_rate_l1", "0.05"), ("referral_rate_l2", "0.01")]:
+        for key, val in [
+            ("referral_rate_l1", "0.05"),
+            ("referral_rate_l2", "0.01"),
+            ("require_device_fingerprint", "1"),
+        ]:
             if not db.query(StorageConfig).filter(StorageConfig.key == key).first():
                 db.add(StorageConfig(key=key, value_text=val))
         db.commit()
@@ -340,6 +344,18 @@ class StorageConfig(Base):
     value_int = Column(Integer, nullable=True)
     value_text = Column(String, nullable=True)
     updated_at = Column(DateTime, default=utcnow)
+
+
+class DeviceFingerprint(Base):
+    __tablename__ = "device_fingerprints"
+
+    id = Column(Integer, primary_key=True)
+    fingerprint_hash = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    registered_at = Column(DateTime, default=utcnow)
+    user_agent = Column(String, nullable=True)
+
+    user = relationship("User")
 
 
 class ShardMap(Base):

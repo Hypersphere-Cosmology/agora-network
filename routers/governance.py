@@ -329,6 +329,25 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             finally:
                 db.close()
 
+    # Device fingerprint requirement
+    if "fingerprint" in title_lower or "device" in title_lower:
+        db = SessionLocal()
+        try:
+            if "require" in winning_label.lower() or "enable" in winning_label.lower():
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "require_device_fingerprint").first()
+                if row:
+                    row.value_text = "1"
+                    db.commit()
+                    print(f"[governance] Device fingerprint requirement ENABLED by proposal #{proposal.id}")
+            elif "open" in winning_label.lower() or "disable" in winning_label.lower() or "remove" in winning_label.lower():
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "require_device_fingerprint").first()
+                if row:
+                    row.value_text = "0"
+                    db.commit()
+                    print(f"[governance] Device fingerprint requirement DISABLED by proposal #{proposal.id}")
+        finally:
+            db.close()
+
 
 @router.get("/parameters")
 def get_parameters(db: Session = Depends(get_db)):
@@ -417,6 +436,15 @@ def get_parameters(db: Session = Depends(get_db)):
                 "description": "Assets rated at or below this average by enough raters are auto-deleted.",
                 "proposal_format": "Include 'prune' in title",
                 "category": "content"
+            },
+            {
+                "name": "Device Fingerprint Requirement",
+                "key": "require_device_fingerprint",
+                "current_value": 1 if cfg("require_device_fingerprint", 1.0) else 0,
+                "display": "Required" if cfg("require_device_fingerprint", 1.0) else "Open",
+                "description": "One account per physical device. Prevents cheap sybil attacks. Disable during growth campaigns.",
+                "proposal_format": "Include 'device' or 'fingerprint' in title, winning option 'require' or 'open registration'",
+                "category": "governance"
             }
         ],
         "founders_active": founders_active(db),
