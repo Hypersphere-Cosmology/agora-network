@@ -314,3 +314,18 @@ def check_and_prune(db: Session) -> List[int]:
         db.commit()
 
     return pruned
+
+
+def run_zombie_check(db: Session) -> dict:
+    """Run dead user pruning check — called after score recalculation."""
+    try:
+        from engine.pruning import check_and_warn
+        result = check_and_warn(db)
+        if result.get('warned'):
+            print(f"[pruning] Warned: {result['warned']}")
+        if result.get('removed'):
+            print(f"[pruning] Removed: {result['removed']}")
+        return result
+    except Exception as e:
+        print(f"[pruning] Error: {e}")
+        return {}
