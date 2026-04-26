@@ -31,6 +31,7 @@ class AssetSubmit(BaseModel):
     content: str
     asset_type: Optional[str] = "concept"
     parent_id: Optional[int] = None
+    tags: Optional[str] = None
 
 
 class AssetOut(BaseModel):
@@ -46,6 +47,7 @@ class AssetOut(BaseModel):
     tokens_minted: float
     avg_rating: float
     rating_count: int
+    tags: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -117,6 +119,7 @@ def submit_asset(
         asset_type=payload.asset_type,
         submitter_id=current_user.id,
         parent_id=payload.parent_id,
+        tags=payload.tags if payload.tags else None,
     )
     db.add(asset)
     db.commit()
@@ -142,8 +145,21 @@ def submit_asset(
     return asset
 
 
+@router.get("/tags")
+def get_tags(db: Session = Depends(get_db)):
+    """Return all unique tags in use across non-deleted assets."""
+    assets = db.query(Asset).filter(Asset.is_deleted == False, Asset.tags != None).all()
+    tag_set = set()
+    for a in assets:
+        if a.tags:
+            for t in a.tags.split(","):
+                tag_set.add(t.strip().lower())
+    return {"tags": sorted(tag_set)}
+
+
 @router.get("/", response_model=list[AssetOut])
 def list_assets(
+    request: Request,
     sort: str = "new",           # new | top | unrated
     q: str = None,               # search query (title + description)
     asset_type: str = None,      # filter by type
@@ -152,6 +168,7 @@ def list_assets(
     db: Session = Depends(get_db),
 ):
     """List assets with optional sort, search, and filter."""
+    from sqlalchemy import or_
     query = db.query(Asset).filter(Asset.is_deleted == False)
 
     if q:
@@ -165,6 +182,14 @@ def list_assets(
         if user:
             query = query.filter(Asset.submitter_id == user.id)
 
+    # Tag filter: ?tags=infrastructure,code — match assets with at least one tag
+    tags_param = request.query_params.get("tags")
+    if tags_param:
+        tag_list = [t.strip().lower() for t in tags_param.split(",") if t.strip()]
+        if tag_list:
+            conditions = [Asset.tags.contains(t) for t in tag_list]
+            query = query.filter(or_(*conditions))
+
     if sort == "top":
         query = query.order_by(Asset.avg_rating.desc().nullslast(), Asset.rating_count.desc())
     elif sort == "unrated":
@@ -173,6 +198,25 @@ def list_assets(
         query = query.order_by(Asset.id.desc())
 
     return query.limit(limit).all()
+
+
+@router.delete("/{asset_id}")
+def delete_asset(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete an asset. Only owner can delete, and only if unrated."""
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.is_deleted == False).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if asset.submitter_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own assets")
+    if asset.rating_count > 0 and asset.avg_rating > 0:
+        raise HTTPException(status_code=409, detail="Rated assets cannot be deleted. Use governance vote to remove.")
+    asset.is_deleted = True
+    db.commit()
+    return {"ok": True, "deleted": asset_id}
 
 
 @router.get("/{asset_id}", response_model=AssetOut)

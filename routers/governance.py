@@ -521,6 +521,15 @@ def get_parameters(db: Session = Depends(get_db)):
                 "proposal_format": "Include 'plagiarism warn' in title, winning option as '70%'",
                 "category": "content"
             },
+            {
+                "name": "Score Dimensions",
+                "key": "score_dimensions",
+                "current_value": 4,
+                "display": "Submission (0-10) + Rater (0-10) + Trade (0-10) + Referral (0-10) = 40 max",
+                "description": "Four equally-weighted percentile-normalized dimensions. Max total score: 40. Dimensions and weights adjustable by vote.",
+                "proposal_format": "Propose 'add score dimension: <name>' or 'reweight score dimensions'",
+                "category": "governance"
+            },
         ],
         "founders_active": founders_active(db),
         "user_count": user_count,

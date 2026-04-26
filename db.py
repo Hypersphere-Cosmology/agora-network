@@ -41,7 +41,9 @@ class User(Base):
     submission_score = Column(Float, default=0.0)  # percentile-normalized 0-10
     rater_score = Column(Float, default=0.0)
     trade_score = Column(Float, default=0.0)
-    total_score = Column(Float, default=0.0)       # 0-30
+    referral_raw = Column(Float, default=0.0)      # count of active referred users (referred_by = this handle AND total_score > 0)
+    referral_score = Column(Float, default=0.0)    # percentile-normalized 0-10
+    total_score = Column(Float, default=0.0)       # 0-40
 
     referred_by = Column(String, nullable=True)    # handle of who referred this user
     referral_code = Column(String, nullable=True)  # their own referral code (= their handle)
@@ -71,6 +73,7 @@ class Asset(Base):
     avg_rating = Column(Float, default=0.0)
     rating_count = Column(Integer, default=0)
     bank_minted = Column(Float, default=0.0)  # bank's cumulative share from this asset
+    tags = Column(String, nullable=True)       # comma-separated tags e.g. "infrastructure,code,agora"
 
     submitter = relationship("User", back_populates="assets")
     ratings = relationship("Rating", back_populates="asset")
@@ -248,8 +251,23 @@ def init_db():
                 conn.commit()
             except Exception:
                 pass  # column already exists
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN referral_raw REAL DEFAULT 0.0"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN referral_score REAL DEFAULT 0.0"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE assets ADD COLUMN tags VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass
 
-    # Seed referral rates into StorageConfig
+    # Seed config values into StorageConfig
     db = SessionLocal()
     try:
         for key, val in [
@@ -258,12 +276,25 @@ def init_db():
             ("require_device_fingerprint", "1"),
             ("plagiarism_block_threshold", "0.92"),
             ("plagiarism_warn_threshold", "0.75"),
+            ("max_score", "40"),
+            ("score_dimensions", "submission,rater,trade,referral"),
         ]:
             if not db.query(StorageConfig).filter(StorageConfig.key == key).first():
                 db.add(StorageConfig(key=key, value_text=val))
         db.commit()
     finally:
         db.close()
+
+    # Recalculate scores after migration (adds referral dimension)
+    try:
+        from engine.scoring import recalculate_all_user_scores
+        _score_db = SessionLocal()
+        try:
+            recalculate_all_user_scores(_score_db)
+        finally:
+            _score_db.close()
+    except Exception as _e:
+        print(f"[init_db] score recalc skipped: {_e}")
 
 
 def get_db():

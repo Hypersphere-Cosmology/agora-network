@@ -177,6 +177,9 @@
     .my-asset-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; margin-bottom: 10px; }
     .my-asset-card h4 { font-size: 0.95rem; color: #fff; margin-bottom: 6px; }
     .my-asset-card .ma-meta { display: flex; gap: 16px; font-size: 0.8rem; color: #666; flex-wrap: wrap; }
+    .tag-btn { background:#1a1a1a; border:1px solid #2a2a2a; color:#666; padding:4px 10px; border-radius:12px; cursor:pointer; font-size:0.75rem; white-space:nowrap; }
+    .tag-btn.active { border-color:#7c6af7; color:#7c6af7; background:#13102a; }
+    .tag-btn:hover { border-color:#444; color:#aaa; }
     .my-asset-card .ma-tokens { color: #4caf50; font-weight: 600; }
     .my-asset-card .ma-avg { color: #7c6af7; font-weight: 600; }
     .my-rating-row { padding: 10px 0; border-bottom: 1px solid #1e1e1e; display: flex; justify-content: space-between; align-items: center; }
@@ -358,6 +361,11 @@
         <option value="art">art</option>
         <option value="other">other</option>
       </select>
+    </div>
+    <div id="tag-sidebar" style="margin-bottom:12px;">
+      <div id="tag-strip" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="tag-btn active" onclick="filterByTag('')" data-tag="">All</button>
+      </div>
     </div>
     <div id="asset-list"><div id="empty-msg">Connect with your API key to browse assets.</div></div>
   </div>
@@ -630,6 +638,7 @@ let ASSETS = [];
 var USD_PER_TOKEN = 1.00;
 let CURRENT_ID = null;
 let SCORE = null;
+var ACTIVE_TAG = '';
 
 // Restore tab from URL hash on load
 (function() {
@@ -783,7 +792,11 @@ async function loadProfile() {
     // Top stats grid
     html += '<div class="profile-grid">';
     html += '<div class="stat-card"><div class="label">Token Balance</div><div class="value tokens">' + Number(ME.token_balance).toFixed(4) + ' A</div><div class="sub">≈$' + (Number(ME.token_balance) * USD_PER_TOKEN).toFixed(2) + ' USD · earned from asset ratings</div></div>';
-    html += '<div class="stat-card"><div class="label">Total Score</div><div class="value score">' + ME.total_score.toFixed(2) + '</div><div class="sub">percentile-normalized</div></div>';
+    html += '<div class="stat-card"><div class="label">Submission</div><div class="value score">' + (ME.submission_score||0).toFixed(2) + '</div><div class="sub">raw: ' + (ME.submission_raw||0).toFixed(1) + ' · max 10</div></div>';
+    html += '<div class="stat-card"><div class="label">Rater</div><div class="value score">' + (ME.rater_score||0).toFixed(2) + '</div><div class="sub">' + (ME.rater_raw||0) + ' ratings given · max 10</div></div>';
+    html += '<div class="stat-card"><div class="label">Trade</div><div class="value score">' + (ME.trade_score||0).toFixed(2) + '</div><div class="sub">raw: ' + (ME.trade_raw||0).toFixed(1) + ' · max 10</div></div>';
+    html += '<div class="stat-card"><div class="label">Referral</div><div class="value score">' + (ME.referral_score||0).toFixed(2) + '</div><div class="sub">' + (ME.referral_raw||0) + ' active referrals · max 10</div></div>';
+    html += '<div class="stat-card" style="border-color:#7c6af7;"><div class="label">Total Score</div><div class="value score" style="font-size:2.2rem;">' + (ME.total_score||0).toFixed(2) + '</div><div class="sub">of 40 maximum</div></div>';
     html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
     var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
     html += '<div class="stat-card"><div class="label">Tokens Minted (your assets)</div><div class="value tokens">' + totalMinted.toFixed(4) + ' A</div><div class="sub">across all your submissions</div></div>';
@@ -803,6 +816,7 @@ async function loadProfile() {
     html += '<div class="score-row"><span class="sname">Submission Score</span><span><span class="sval">' + ME.submission_score.toFixed(4) + '</span><span class="sraw">raw: ' + Number(ME.submission_raw).toFixed(4) + '</span></span></div>';
     html += '<div class="score-row"><span class="sname">Rater Score</span><span><span class="sval">' + ME.rater_score.toFixed(4) + '</span><span class="sraw">ratings given: ' + ME.rater_raw + '</span></span></div>';
     html += '<div class="score-row"><span class="sname">Trade Score</span><span><span class="sval">' + ME.trade_score.toFixed(4) + '</span><span class="sraw">raw: ' + Number(ME.trade_raw).toFixed(4) + '</span></span></div>';
+    html += '<div class="score-row"><span class="sname">Referral Score</span><span><span class="sval">' + (ME.referral_score||0).toFixed(4) + '</span><span class="sraw">active referrals: ' + (ME.referral_raw||0) + '</span></span></div>';
     html += '</div>';
 
     // My assets
@@ -966,6 +980,37 @@ function debounceAssets() {
   _assetSearchTimer = setTimeout(loadAssets, 300);
 }
 
+async function loadTags() {
+  try {
+    var d = await fetch('/assets/tags').then(function(r){return r.json();});
+    var strip = document.getElementById('tag-strip');
+    if (!strip) return;
+    var html = '<button class="tag-btn' + (ACTIVE_TAG===''?' active':'') + '" onclick="filterByTag(\'\')" data-tag="">All</button>';
+    (d.tags||[]).forEach(function(t) {
+      html += '<button class="tag-btn' + (ACTIVE_TAG===t?' active':'') + '" onclick="filterByTag(\'' + esc(t) + '\')" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
+    });
+    strip.innerHTML = html;
+  } catch(e) {}
+}
+
+function filterByTag(tag) {
+  ACTIVE_TAG = tag;
+  document.querySelectorAll('.tag-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tag === tag);
+  });
+  loadAssets();
+}
+
+async function deleteAsset(id) {
+  if (!confirm('Delete this asset? This cannot be undone.')) return;
+  try {
+    var r = await fetch('/assets/' + id, {method:'DELETE', headers:{'X-API-Key':KEY}});
+    var d = await r.json();
+    if (d.ok) loadAssets();
+    else alert(d.detail || 'Could not delete');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 async function loadAssets() {
   try {
     var sort = (document.getElementById('asset-sort')||{}).value || 'new';
@@ -974,10 +1019,11 @@ async function loadAssets() {
     var url = '/assets/?sort=' + sort;
     if (q) url += '&q=' + encodeURIComponent(q);
     if (typeFilter) url += '&asset_type=' + encodeURIComponent(typeFilter);
+    if (ACTIVE_TAG) url += '&tags=' + encodeURIComponent(ACTIVE_TAG);
     const all = await fetch(url).then(function(r){return r.json();});
     ASSETS = all.filter(function(a){return !a.is_deleted;});
     const list = document.getElementById('asset-list');
-    if (!ASSETS.length) { list.innerHTML = '<div id="empty-msg">No assets yet.</div>'; return; }
+    if (!ASSETS.length) { list.innerHTML = '<div id="empty-msg">No assets yet.</div>'; loadTags(); return; }
     list.innerHTML = '';
     ASSETS.forEach(function(a, idx) {
       const div = document.createElement('div');
@@ -989,6 +1035,10 @@ async function loadAssets() {
       // Check if any other asset has this as parent (has children)
       const hasChildren = ASSETS.some(function(x){ return x.parent_id === a.id; });
       const thread = hasChildren ? '<span class="badge" style="color:#888">has modifications</span>' : '';
+      var cardButtons = '';
+      if (ME && a.submitter_id === ME.id && a.rating_count === 0) {
+        cardButtons = '<button onclick="event.stopPropagation();deleteAsset(' + a.id + ')" style="background:#2a1a1a;border:1px solid #4a2a2a;color:#f66;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;margin-top:6px;">Delete</button>';
+      }
       div.innerHTML = '<h3>#' + a.id + ' &#8212; ' + esc(a.title) + g + mine + mod + thread + '</h3>' +
         (a.description ? '<p>' + esc(a.description) + '</p>' : '') +
         '<div class="asset-meta">' +
@@ -996,9 +1046,11 @@ async function loadAssets() {
         '<span>' + a.rating_count + ' rating' + (a.rating_count !== 1 ? 's' : '') + '</span>' +
         '<span class="minted">' + Number(a.tokens_minted).toFixed(4) + ' A minted</span>' +
         '<span style="color:#444">' + esc(a.asset_type||'') + '</span>' +
-        '</div>';
+        '</div>' +
+        cardButtons;
       list.appendChild(div);
     });
+    loadTags();
   } catch(e) { console.error('loadAssets', e); }
 }
 

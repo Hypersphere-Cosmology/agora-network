@@ -4,8 +4,10 @@ Profile walls and direct messaging.
 """
 
 import httpx
+import socket
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
@@ -15,6 +17,13 @@ from auth import get_current_user
 from db import get_db, User, ProfilePost, DirectMessage
 
 router = APIRouter(tags=["social"])
+
+
+def _get_my_ip() -> str:
+    try:
+        return socket.gethostbyname(socket.gethostname())
+    except Exception:
+        return "127.0.0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -27,14 +36,24 @@ def _utcnow_str() -> str:
 
 def _relay_to_peers(sender_handle: str, recipient_handle: str,
                     content: str, thread_id: str, sent_at: str):
-    """Synchronously relay DM to all known peer nodes (fire-and-forget)."""
+    """Synchronously relay DM to all known peer nodes (fire-and-forget).
+    Skips peers on the same machine to prevent duplicate storage."""
     try:
         from routers.federation import load_registry
         reg = load_registry()
+        my_ip = _get_my_ip()
         for node_id, node in reg.get("nodes", {}).items():
             peer_url = node.get("public_url", "")
             if not peer_url:
                 continue
+            # Skip peers on the same machine — both nodes share same users via federation sync
+            try:
+                parsed = urlparse(peer_url)
+                peer_ip = parsed.hostname or ""
+                if peer_ip == my_ip or peer_ip in ("localhost", "127.0.0.1"):
+                    continue
+            except Exception:
+                pass
             try:
                 with httpx.Client(timeout=5) as client:
                     client.post(f"{peer_url}/federation/relay-dm", json={

@@ -90,7 +90,20 @@ def recalculate_all_user_scores(db: Session):
         u.submission_score = percentile_score(u.submission_raw, submission_raws)
         u.rater_score = percentile_score(float(u.rater_raw), rater_raws)
         u.trade_score = percentile_score(float(u.trade_raw), trade_raws)
-        u.total_score = round(u.submission_score + u.rater_score + u.trade_score, 4)
+
+    # Referral score: count of users you referred who have total_score > 0 (active participants)
+    # We use a temporary total to determine who is "active" before referral is added
+    for u in users:
+        u.referral_raw = db.query(User).filter(
+            User.referred_by == u.handle,
+            User.total_score > 0
+        ).count()
+
+    referral_raws = [float(u.referral_raw) for u in users]
+
+    for u in users:
+        u.referral_score = percentile_score(float(u.referral_raw), referral_raws)
+        u.total_score = round(u.submission_score + u.rater_score + u.trade_score + u.referral_score, 4)
 
     db.commit()
 
