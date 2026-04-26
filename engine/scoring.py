@@ -15,9 +15,12 @@ from typing import List
 # ---------------------------------------------------------------------------
 
 def percentile_score(value: float, all_values: List[float]) -> float:
-    """Normalize a value to 0-10 based on its percentile in the population."""
+    """Normalize a value to 0-10 based on its percentile in the population.
+    Zero raw activity always scores zero — no free points for just existing."""
     if not all_values or len(all_values) == 1:
         return 0.0
+    if value == 0:
+        return 0.0  # Zero activity = zero score, regardless of what others have done
     below = sum(1 for v in all_values if v < value)
     equal = sum(1 for v in all_values if v == value)
     # Midpoint percentile
