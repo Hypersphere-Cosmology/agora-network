@@ -74,7 +74,17 @@
     <span id="user-chip"></span>
   </div>
 </header>
-  <div class="tab-wrapper">
+
+  <script>
+  fetch('/status').then(function(r){return r.json();}).then(function(s){
+    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
+    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
+    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
+  }).catch(function(){});
+  </script>
+
+<main>
+<div class="tab-wrapper">
   <div class="status-bar-mini">
     <span>Users: <strong id="s-users">—</strong></span>
     <span>Assets: <strong id="s-assets">—</strong></span>
@@ -122,15 +132,6 @@
   }).catch(function(){});
   </script>
 
-  <script>
-  fetch('/status').then(function(r){return r.json();}).then(function(s){
-    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
-    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
-    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
-  }).catch(function(){});
-  </script>
-
-<main>
   <div id="board-bar" class="board-bar">Loading board info...</div>
   <div id="committee-list"><div style="color:#444;padding:32px;text-align:center">Loading committees...</div></div>
 </main>

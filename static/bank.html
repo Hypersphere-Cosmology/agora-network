@@ -96,7 +96,17 @@
   <h1>&#x2B21; <span>Agora</span> Bank</h1>
     
 </header>
-  <div class="tab-wrapper">
+
+  <script>
+  fetch('/status').then(function(r){return r.json();}).then(function(s){
+    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
+    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
+    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
+  }).catch(function(){});
+  </script>
+
+<main>
+<div class="tab-wrapper">
   <div class="status-bar-mini">
     <span>Users: <strong id="s-users">—</strong></span>
     <span>Assets: <strong id="s-assets">—</strong></span>
@@ -144,15 +154,6 @@
   }).catch(function(){});
   </script>
 
-  <script>
-  fetch('/status').then(function(r){return r.json();}).then(function(s){
-    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
-    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
-    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
-  }).catch(function(){});
-  </script>
-
-<main>
   <div class="page-title">Network Bank</div>
   <p class="page-sub">Full transparency on the Agora treasury and fee income. All figures are live. No hidden accounts.</p>
 
