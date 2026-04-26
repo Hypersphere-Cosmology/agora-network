@@ -539,6 +539,24 @@ def get_parameters(db: Session = Depends(get_db)):
                 "category": "governance"
             },
             {
+                "name": "Zombie Threshold",
+                "key": "zombie_threshold",
+                "current_value": cfg("zombie_threshold", 0.20),
+                "display": f"{cfg('zombie_threshold', 0.20)*100:.0f}% of users",
+                "description": "When zero-score users reach this % of total users, oldest accounts receive a 72-hour removal warning.",
+                "proposal_format": "Include 'zombie threshold' in title, winning option as '25%'",
+                "category": "governance"
+            },
+            {
+                "name": "Zombie Removal Hours",
+                "key": "zombie_removal_hours",
+                "current_value": cfg("zombie_removal_hours", 72),
+                "display": f"{cfg('zombie_removal_hours', 72):.0f} hours",
+                "description": "Hours between warning and removal for zero-score accounts. Account is spared if score becomes positive before deadline.",
+                "proposal_format": "Include 'zombie removal hours' in title, winning option as '48'",
+                "category": "governance"
+            },
+            {
                 "name": "Auto-Prune Threshold",
                 "key": "prune_threshold",
                 "current_value": 1.0,

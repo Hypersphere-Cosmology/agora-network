@@ -14,7 +14,7 @@ from db import get_db, Asset, User, Rating, PlagiarismFlag
 from auth import get_current_user
 from notifications import notify
 from ratelimit import limiter
-from engine.scoring import recalculate_asset_mint, recalculate_all_user_scores, check_and_prune
+from engine.scoring import recalculate_asset_mint, recalculate_all_user_scores, check_and_prune, run_zombie_check
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -266,6 +266,7 @@ def rate_asset(
     recalculate_asset_mint(db, asset_id)
     recalculate_all_user_scores(db)
     pruned = check_and_prune(db)
+    run_zombie_check(db)  # Check for zombie threshold after every score update
 
     db.refresh(asset)
 

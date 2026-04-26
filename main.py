@@ -236,6 +236,13 @@ def root():
     }
 
 
+
+@app.get("/prune/status")
+def prune_status(db: Session = Depends(get_db)):
+    from engine.pruning import get_prune_status
+    return get_prune_status(db)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agora", "version": "0.1.0"}
