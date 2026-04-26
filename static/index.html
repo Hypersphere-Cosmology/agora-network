@@ -631,6 +631,15 @@ var USD_PER_TOKEN = 1.00;
 let CURRENT_ID = null;
 let SCORE = null;
 
+// Restore tab from URL hash on load
+(function() {
+  var validTabs = ['assets','market','gov','users','profile','messages'];
+  var hash = window.location.hash.replace('#','');
+  if (hash && validTabs.indexOf(hash) !== -1) {
+    window.addEventListener('agora:booted', function() { showTab(hash); }, {once: true});
+  }
+})();
+
 if (KEY) {
   document.getElementById('key-input').value = KEY;
   boot();
@@ -694,6 +703,10 @@ function showTab(name) {
   if (activeTabId) {
     var activeTab = document.getElementById(activeTabId);
     if (activeTab) activeTab.classList.add('active');
+  }
+  // Persist tab in URL hash so refresh restores position
+  if (history.replaceState) {
+    history.replaceState(null, '', '#' + name);
   }
   if (name === 'market') { loadListings(); loadServices(); }
   if (name === 'users') loadUsers();
@@ -925,6 +938,8 @@ async function boot() {
     document.getElementById('register-box').style.display = 'block';
     loadAssets();
   }
+  // Signal that boot is complete — tab restoration listens for this
+  window.dispatchEvent(new Event('agora:booted'));
 }
 
 
