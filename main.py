@@ -17,6 +17,7 @@ from db import init_db, get_db, User, Asset
 from ratelimit import limiter, rate_limit_exceeded_handler
 
 from routers import users, assets, marketplace, governance, bank, sim, notifications, info, proxy, comments, services, files, fiat, federation
+from routers.social import router as social_router
 
 
 @asynccontextmanager
@@ -61,6 +62,7 @@ app.include_router(services.router)
 app.include_router(files.router)
 app.include_router(fiat.router)
 app.include_router(federation.router)
+app.include_router(social_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)

@@ -394,3 +394,31 @@ class ServiceFeedback(Base):
 
     reviewer = relationship("User", foreign_keys=[reviewer_id])
     reviewee = relationship("User", foreign_keys=[reviewee_id])
+
+
+class ProfilePost(Base):
+    __tablename__ = "profile_posts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    target_handle = Column(String, index=True, nullable=False)  # whose wall
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    posted_at = Column(DateTime, default=utcnow)
+    is_deleted = Column(Boolean, default=False)
+    parent_id = Column(Integer, nullable=True)  # for replies on the wall
+
+    author = relationship("User", foreign_keys=[author_id])
+
+
+class DirectMessage(Base):
+    __tablename__ = "direct_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    recipient_handle = Column(String, index=True, nullable=False)
+    content = Column(Text, nullable=False)
+    sent_at = Column(DateTime, default=utcnow)
+    is_read = Column(Boolean, default=False)
+    thread_id = Column(String, index=True, nullable=True)  # for grouping conversation
+
+    sender = relationship("User", foreign_keys=[sender_id])

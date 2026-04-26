@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from db import get_db, User, Asset, Rating, TokenEvent, BankLedger, StorageConfig
+from db import get_db, User, Asset, Rating, TokenEvent, BankLedger, StorageConfig, ProfilePost
 from engine.sharding import assign_nodes, shard_coverage
 
 router = APIRouter(prefix="/federation", tags=["federation"])
@@ -274,6 +274,7 @@ def get_snapshot(since_id: int = 0, db: Session = Depends(get_db)):
 
     users = db.query(User).all()
     config = db.query(StorageConfig).all()
+    posts = db.query(ProfilePost).filter(ProfilePost.is_deleted == False).order_by(ProfilePost.id.asc()).all()
 
     return {
         "snapshot_at": datetime.now(timezone.utc).isoformat(),
@@ -297,6 +298,14 @@ def get_snapshot(since_id: int = 0, db: Session = Depends(get_db)):
                 "content_hash": a.content_hash,
             }
             for a in assets
+        ],
+        "profile_posts": [
+            {
+                "id": p.id, "target_handle": p.target_handle, "author_id": p.author_id,
+                "content": p.content, "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+                "parent_id": p.parent_id,
+            }
+            for p in posts
         ],
         "config": {c.key: (c.value_int or c.value_text) for c in config},
         "has_more": len(assets) == 500,

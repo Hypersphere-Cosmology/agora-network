@@ -192,7 +192,17 @@ async function loadProfile(handle) {
       });
     }
 
+    html += '<div id="profile-wall" style="margin-top:24px;">' +
+      '<h3 style="font-size:0.9rem;color:#888;margin-bottom:12px;border-top:1px solid #1a1a1a;padding-top:16px;">Wall</h3>' +
+      '<div id="wall-compose" style="margin-bottom:16px;">' +
+      '<textarea id="wall-input" placeholder="Write on this wall..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:10px;border-radius:6px;font-size:0.84rem;resize:vertical;min-height:60px;box-sizing:border-box;"></textarea>' +
+      '<button onclick="postToWall()" style="margin-top:6px;background:#7c6af7;color:#fff;border:none;padding:7px 18px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Post</button>' +
+      '</div>' +
+      '<div id="wall-posts"></div>' +
+      '</div>';
+
     root.innerHTML = html;
+    loadWall(handle);
   } catch(e) {
     root.innerHTML = '<div class="error">Could not load @' + esc(handle) + ': ' + esc(e.message) + '</div>';
   }
@@ -220,6 +230,57 @@ async function get(path) {
   return d;
 }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ---------------------------------------------------------------------------
+// Wall
+// ---------------------------------------------------------------------------
+var WALL_HANDLE = null;
+var API_KEY = localStorage.getItem('agora_key') || '';
+
+async function loadWall(h) {
+  WALL_HANDLE = h;
+  try {
+    var r = await fetch('/users/' + h + '/wall');
+    var d = await r.json();
+    renderWall(d.posts);
+  } catch(e) { console.error('wall', e); }
+}
+
+function renderWall(posts) {
+  var container = document.getElementById('wall-posts');
+  if (!container) return;
+  if (!posts || !posts.length) {
+    container.innerHTML = '<p style="color:#444;font-size:0.8rem;">No posts yet.</p>';
+    return;
+  }
+  container.innerHTML = posts.map(function(p) {
+    return '<div style="border:1px solid #1a1a1a;border-radius:6px;padding:12px;margin-bottom:8px;">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:6px;">' +
+      '<span style="color:#7c6af7;font-size:0.82rem;">@' + esc(p.author_handle) + '</span>' +
+      '<span style="color:#444;font-size:0.75rem;">' + new Date(p.posted_at).toLocaleString() + '</span>' +
+      '</div>' +
+      '<p style="margin:0;font-size:0.84rem;color:#ccc;">' + esc(p.content) + '</p>' +
+      '</div>';
+  }).join('');
+}
+
+async function postToWall() {
+  if (!API_KEY || !WALL_HANDLE) { alert('Connect your API key first.'); return; }
+  var input = document.getElementById('wall-input');
+  var content = input ? input.value.trim() : '';
+  if (!content) return;
+  try {
+    var r = await fetch('/users/' + WALL_HANDLE + '/wall', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-API-Key': API_KEY},
+      body: JSON.stringify({content: content})
+    });
+    var d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    if (input) input.value = '';
+    loadWall(WALL_HANDLE);
+  } catch(e) { alert('Failed to post: ' + e.message); }
+}
 </script>
 </body>
 </html>

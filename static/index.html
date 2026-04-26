@@ -229,6 +229,7 @@
       <div class="tab" onclick="showTab('gov')">Governance</div>
       <div class="tab" onclick="showTab('users')">Users</div>
       <div class="tab" onclick="showTab('profile')">Profile</div>
+      <div class="tab" id="tab-messages" onclick="showTab('messages')">Messages</div>
       <a href="/bank-portal" class="tab" style="text-decoration:none;color:#4caf50;" onmouseover="this.style.borderBottomColor='#4caf50'" onmouseout="this.style.borderBottomColor='transparent'">Bank</a>
       <a href="/faq" class="tab" style="text-decoration:none;" onmouseover="this.style.borderBottomColor='#7c6af7'" onmouseout="this.style.borderBottomColor='transparent'">FAQ</a>
     </div>
@@ -308,6 +309,17 @@
   <!-- PROFILE PANE -->
   <div id="pane-profile" class="pane">
     <div id="profile-content"><div style="color:#444;padding:32px;text-align:center">Connect with your API key to view your profile.</div></div>
+  </div>
+
+  <!-- MESSAGES PANE -->
+  <div id="pane-messages" class="pane">
+    <h2 style="font-size:1rem;color:#888;margin-bottom:16px;">Direct Messages</h2>
+    <div id="dm-threads" style="margin-bottom:20px;"></div>
+    <div id="dm-compose" style="border-top:1px solid #1a1a1a;padding-top:16px;">
+      <input type="text" id="dm-to" placeholder="Send to @handle..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;box-sizing:border-box;margin-bottom:8px;">
+      <textarea id="dm-content" placeholder="Message..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:80px;resize:vertical;box-sizing:border-box;"></textarea>
+      <button onclick="sendDM()" style="margin-top:8px;background:#7c6af7;color:#fff;border:none;padding:8px 20px;border-radius:5px;cursor:pointer;">Send</button>
+    </div>
   </div>
 
   <!-- MARKETPLACE PANE -->
@@ -593,17 +605,21 @@ async function submitAsset() {
 }
 
 function showTab(name) {
-  var tabs = ['assets','market','gov','users','profile'];
-  document.querySelectorAll('.tab').forEach(function(t,i) { t.classList.toggle('active', tabs[i] === name); });
-  document.getElementById('pane-assets').classList.toggle('active', name==='assets');
-  document.getElementById('pane-market').classList.toggle('active', name==='market');
-  document.getElementById('pane-users').classList.toggle('active', name==='users');
-  document.getElementById('pane-gov').classList.toggle('active', name==='gov');
-  document.getElementById('pane-profile').classList.toggle('active', name==='profile');
+  var panes = ['assets','market','gov','users','profile','messages'];
+  panes.forEach(function(p) {
+    var el = document.getElementById('pane-' + p);
+    if (el) el.classList.toggle('active', p === name);
+  });
+  // Update tab active state by matching onclick attribute
+  document.querySelectorAll('.tab').forEach(function(t) {
+    var onclick = t.getAttribute('onclick') || '';
+    t.classList.toggle('active', onclick === "showTab('" + name + "')");
+  });
   if (name === 'market') { loadListings(); loadServices(); }
   if (name === 'users') loadUsers();
   if (name === 'gov') loadGov();
   if (name === 'profile') loadProfile();
+  if (name === 'messages') loadInbox();
 }
 
 async function loadUsers() {
@@ -1732,6 +1748,69 @@ async function api(path, method, body) {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---------------------------------------------------------------------------
+// Direct Messages
+// ---------------------------------------------------------------------------
+var CURRENT_THREAD = null;
+
+async function loadInbox() {
+  if (!KEY || !ME) return;
+  try {
+    var d = await api('/users/' + ME.handle + '/inbox');
+    renderThreads(d.threads || []);
+    // Update unread badge on tab
+    var threads = d.threads || [];
+    var totalUnread = threads.reduce(function(sum, t) { return sum + (t.unread || 0); }, 0);
+    var tabEl = document.getElementById('tab-messages');
+    if (tabEl) {
+      tabEl.textContent = totalUnread > 0 ? 'Messages (' + totalUnread + ')' : 'Messages';
+    }
+  } catch(e) {}
+}
+
+function renderThreads(threads) {
+  var el = document.getElementById('dm-threads');
+  if (!el) return;
+  if (!threads.length) { el.innerHTML = '<p style="color:#444;font-size:0.8rem;">No messages yet.</p>'; return; }
+  el.innerHTML = threads.map(function(t) {
+    return '<div style="border:1px solid #1a1a1a;border-radius:6px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="openThread(\'' + esc(t.thread_id) + '\',\'' + esc(t.other_party) + '\')">' +
+      '<div style="display:flex;justify-content:space-between;">' +
+      '<span style="color:#7c6af7;font-size:0.85rem;">@' + esc(t.other_party) + '</span>' +
+      (t.unread > 0 ? '<span style="background:#7c6af7;color:#fff;border-radius:10px;padding:1px 8px;font-size:0.72rem;">' + t.unread + '</span>' : '') +
+      '</div>' +
+      '<p style="margin:4px 0 0;font-size:0.8rem;color:#666;">' + esc((t.last_message||'').slice(0,80)) + '</p>' +
+      '</div>';
+  }).join('');
+}
+
+function openThread(threadId, otherParty) {
+  CURRENT_THREAD = threadId;
+  var toEl = document.getElementById('dm-to');
+  if (toEl) toEl.value = otherParty;
+  // Mark read
+  if (KEY && ME) {
+    fetch('/users/' + ME.handle + '/inbox/read', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
+      body: JSON.stringify({thread_id: threadId})
+    });
+  }
+}
+
+async function sendDM() {
+  if (!KEY || !ME) return;
+  var toEl = document.getElementById('dm-to');
+  var contentEl = document.getElementById('dm-content');
+  var to = toEl ? toEl.value.trim().replace('@','') : '';
+  var content = contentEl ? contentEl.value.trim() : '';
+  if (!to || !content) return;
+  try {
+    await api('/users/' + to + '/dm', 'POST', {content: content, thread_id: CURRENT_THREAD || null});
+    if (contentEl) contentEl.value = '';
+    loadInbox();
+  } catch(e) { alert('Failed to send: ' + e.message); }
 }
 </script>
 </body>
