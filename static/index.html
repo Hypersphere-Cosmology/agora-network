@@ -392,9 +392,13 @@
     <h2 style="font-size:1rem;color:#888;margin-bottom:16px;">Direct Messages</h2>
     <div id="dm-threads" style="margin-bottom:20px;"></div>
     <div id="dm-compose" style="border-top:1px solid #1a1a1a;padding-top:16px;">
-      <input type="text" id="dm-to" placeholder="Send to @handle..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;box-sizing:border-box;margin-bottom:8px;">
+      <div id="dm-compose-label" style="font-size:0.75rem;color:#555;margin-bottom:8px;">New message — or click a conversation above to reply</div>
+      <input type="text" id="dm-to" placeholder="@handle..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;box-sizing:border-box;margin-bottom:8px;">
       <textarea id="dm-content" placeholder="Message..." style="width:100%;background:#111;border:1px solid #2a2a2a;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:80px;resize:vertical;box-sizing:border-box;"></textarea>
-      <button onclick="sendDM()" style="margin-top:8px;background:#7c6af7;color:#fff;border:none;padding:8px 20px;border-radius:5px;cursor:pointer;">Send</button>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button onclick="sendDM()" style="background:#7c6af7;color:#fff;border:none;padding:8px 20px;border-radius:5px;cursor:pointer;flex:1;">Send</button>
+        <button onclick="clearDMThread()" id="dm-clear-btn" style="display:none;background:#2a2a2a;color:#888;border:1px solid #333;padding:8px 14px;border-radius:5px;cursor:pointer;font-size:0.8rem;">✕ Clear</button>
+      </div>
     </div>
   </div>
 
@@ -2045,10 +2049,27 @@ function renderThreads(threads) {
   if (labelEl) labelEl.innerHTML = totalUnread > 0 ? 'Messages <span style="background:#7c6af7;color:#fff;border-radius:10px;padding:0 5px;font-size:0.65rem;vertical-align:middle;">' + totalUnread + '</span>' : 'Messages';
 }
 
+function clearDMThread() {
+  CURRENT_THREAD = null;
+  var toEl = document.getElementById('dm-to');
+  if (toEl) toEl.value = '';
+  var lbl = document.getElementById('dm-compose-label');
+  if (lbl) lbl.textContent = 'New message — or click a conversation above to reply';
+  var clr = document.getElementById('dm-clear-btn');
+  if (clr) clr.style.display = 'none';
+  var contentEl = document.getElementById('dm-content');
+  if (contentEl) { contentEl.value = ''; contentEl.focus(); }
+}
+
 function openThread(threadId, otherParty) {
   CURRENT_THREAD = threadId;
   var toEl = document.getElementById('dm-to');
   if (toEl) toEl.value = otherParty;
+  // Update compose label to show reply context
+  var lbl = document.getElementById('dm-compose-label');
+  if (lbl) lbl.innerHTML = 'Replying to <strong style="color:#7c6af7;">@' + esc(otherParty) + '</strong>';
+  var clr = document.getElementById('dm-clear-btn');
+  if (clr) clr.style.display = 'inline-block';
   if (KEY && ME) {
     fetch('/users/' + ME.handle + '/inbox/read', {
       method: 'POST',
