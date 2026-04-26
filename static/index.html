@@ -2054,13 +2054,21 @@ function openThread(threadId, otherParty) {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
       body: JSON.stringify({thread_id: threadId})
-    }).then(function(){ loadInbox(); });
+    }).then(function(){
+      // Reload inbox but preserve thread state
+      loadInbox().then(function() {
+        // Restore after re-render
+        CURRENT_THREAD = threadId;
+        var toEl2 = document.getElementById('dm-to');
+        if (toEl2) toEl2.value = otherParty;
+      });
+    });
   }
   // Scroll to compose
   setTimeout(function() {
     var compose = document.getElementById('dm-compose');
     if (compose) compose.scrollIntoView({behavior: 'smooth', block: 'nearest'});
-  }, 100);
+  }, 200);
 }
 
 async function sendDM() {
@@ -2075,9 +2083,14 @@ async function sendDM() {
   try {
     await api('/users/' + to + '/dm', 'POST', {content: content, thread_id: CURRENT_THREAD || null});
     if (contentEl) contentEl.value = '';
-    CURRENT_THREAD = null;
-    if (toEl) toEl.value = '';
-    loadInbox();
+    // Keep thread/recipient so user can reply again immediately
+    var savedThread = CURRENT_THREAD;
+    var savedTo = to;
+    loadInbox().then(function() {
+      CURRENT_THREAD = savedThread;
+      var toEl2 = document.getElementById('dm-to');
+      if (toEl2 && savedTo) toEl2.value = savedTo;
+    });
   } catch(e) { alert('Send failed: ' + e.message); }
 }
 
@@ -2126,11 +2139,12 @@ function toggleNetworkStatus() {
 
 function toggleKeyInput() {
   var input = document.getElementById('key-input');
-  var connectBtn = document.querySelector('#auth-bar button:not(#key-toggle-btn)');
+  var connectBtn = document.getElementById('connect-btn');
   if (!input) return;
   var expanded = input.classList.toggle('expanded');
   if (connectBtn) connectBtn.style.display = expanded ? 'inline-block' : 'none';
-  if (expanded) input.focus();
+  if (input) input.style.display = expanded ? 'inline-block' : 'none';
+  if (expanded) { input.style.width = 'calc(100vw - 120px)'; input.focus(); }
 }
 
 async function rotateKey() {
