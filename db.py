@@ -256,6 +256,8 @@ def init_db():
             ("referral_rate_l1", "0.05"),
             ("referral_rate_l2", "0.01"),
             ("require_device_fingerprint", "1"),
+            ("plagiarism_block_threshold", "0.92"),
+            ("plagiarism_warn_threshold", "0.75"),
         ]:
             if not db.query(StorageConfig).filter(StorageConfig.key == key).first():
                 db.add(StorageConfig(key=key, value_text=val))

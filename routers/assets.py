@@ -59,7 +59,7 @@ class FlagSubmit(BaseModel):
     reason: Optional[str] = None
 
 
-@router.post("/", response_model=AssetOut, status_code=201)
+@router.post("/", status_code=201)
 @limiter.limit("20/hour")
 def submit_asset(
     request: Request,
@@ -83,6 +83,25 @@ def submit_asset(
     if db.query(Asset).filter(Asset.content_hash == content_hash).first():
         raise HTTPException(status_code=409, detail="Duplicate content — hash already exists")
 
+    # Semantic plagiarism check (lazy imports to avoid slow startup)
+    import logging
+    logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+    from engine.plagiarism import check_plagiarism
+    from db import StorageConfig as SC
+
+    block_row = db.query(SC).filter(SC.key == "plagiarism_block_threshold").first()
+    warn_row  = db.query(SC).filter(SC.key == "plagiarism_warn_threshold").first()
+    block_t = float(block_row.value_text) if block_row else 0.92
+    warn_t  = float(warn_row.value_text)  if warn_row  else 0.75
+
+    plg = check_plagiarism(payload.content, db, block_t, warn_t)
+
+    if plg["status"] == "block":
+        raise HTTPException(status_code=409, detail=plg["message"])
+
+    # Warn but allow — carry the message into the response
+    plagiarism_warning = plg.get("message") if plg["status"] == "warn" else None
+
     if payload.parent_id:
         parent = db.query(Asset).filter(
             Asset.id == payload.parent_id, Asset.is_deleted == False
@@ -102,6 +121,24 @@ def submit_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
+
+    # Build response — include plagiarism warning if content was flagged but allowed
+    if plagiarism_warning:
+        return {
+            "id": asset.id,
+            "title": asset.title,
+            "description": asset.description,
+            "content": asset.content,
+            "asset_type": asset.asset_type,
+            "submitter_id": asset.submitter_id,
+            "parent_id": asset.parent_id,
+            "is_genesis": asset.is_genesis,
+            "is_deleted": asset.is_deleted,
+            "tokens_minted": asset.tokens_minted,
+            "avg_rating": asset.avg_rating,
+            "rating_count": asset.rating_count,
+            "warning": plagiarism_warning,
+        }
     return asset
 
 

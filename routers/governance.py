@@ -329,6 +329,36 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             finally:
                 db.close()
 
+    # Plagiarism block threshold proposals
+    if "plagiarism block" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_val = str(float(match.group(1)) / 100.0)
+            db = SessionLocal()
+            try:
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "plagiarism_block_threshold").first()
+                if row:
+                    row.value_text = new_val
+                    db.commit()
+                    print(f"[governance] Plagiarism block threshold updated to {new_val} by proposal #{proposal.id}")
+            finally:
+                db.close()
+
+    # Plagiarism warn threshold proposals
+    if "plagiarism warn" in title_lower:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*%', winning_label)
+        if match:
+            new_val = str(float(match.group(1)) / 100.0)
+            db = SessionLocal()
+            try:
+                row = db.query(StorageConfigModel).filter(StorageConfigModel.key == "plagiarism_warn_threshold").first()
+                if row:
+                    row.value_text = new_val
+                    db.commit()
+                    print(f"[governance] Plagiarism warn threshold updated to {new_val} by proposal #{proposal.id}")
+            finally:
+                db.close()
+
     # Device fingerprint requirement
     if "fingerprint" in title_lower or "device" in title_lower:
         db = SessionLocal()
@@ -445,7 +475,25 @@ def get_parameters(db: Session = Depends(get_db)):
                 "description": "One account per physical device. Prevents cheap sybil attacks. Disable during growth campaigns.",
                 "proposal_format": "Include 'device' or 'fingerprint' in title, winning option 'require' or 'open registration'",
                 "category": "governance"
-            }
+            },
+            {
+                "name": "Plagiarism Block Threshold",
+                "key": "plagiarism_block_threshold",
+                "current_value": cfg("plagiarism_block_threshold", 0.92),
+                "display": f"{cfg('plagiarism_block_threshold', 0.92)*100:.0f}% similarity",
+                "description": "Semantic similarity above this threshold blocks submission. 0.92 = 92% similar content rejected.",
+                "proposal_format": "Include 'plagiarism block' in title, winning option as '90%'",
+                "category": "content"
+            },
+            {
+                "name": "Plagiarism Warn Threshold",
+                "key": "plagiarism_warn_threshold",
+                "current_value": cfg("plagiarism_warn_threshold", 0.75),
+                "display": f"{cfg('plagiarism_warn_threshold', 0.75)*100:.0f}% similarity",
+                "description": "Semantic similarity above this threshold warns submitter but allows submission.",
+                "proposal_format": "Include 'plagiarism warn' in title, winning option as '70%'",
+                "category": "content"
+            },
         ],
         "founders_active": founders_active(db),
         "user_count": user_count,
