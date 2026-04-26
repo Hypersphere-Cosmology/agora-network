@@ -739,11 +739,14 @@ async function loadUsers() {
     var nodeData = await fetch('/federation/nodes').then(r => r.json()).catch(() => ({nodes:[]}));
     var nodeOperators = new Set(nodeData.nodes.map(n => n.operator_handle));
     users.sort(function(a,b){ return b.total_score - a.total_score; });
-    var html = '<div class="section-title">Network Participants (' + users.length + ')</div>';
+    var active = users.filter(function(u){ return u.total_score > 0; });
+    var inactive = users.filter(function(u){ return u.total_score <= 0; });
+    var html = '<div class="section-title">Members — ranked by score (' + active.length + ' active · ' + inactive.length + ' unranked)</div>';
     html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;">';
     users.forEach(function(u, i) {
       var isMe = ME && u.handle === ME.handle;
-      html += '<div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid #1e1e1e;' + (isMe ? 'background:#1a1a2e;' : '') + '">';
+      var isInactive = u.total_score <= 0;
+      html += '<div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid #1e1e1e;' + (isMe ? 'background:#1a1a2e;' : isInactive ? 'opacity:0.5;' : '') + '">';
       // Rank
       html += '<div style="font-size:0.78rem;color:#444;width:20px;text-align:right;flex-shrink:0;">' + (i+1) + '</div>';
       // Avatar letter
