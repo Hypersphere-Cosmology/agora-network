@@ -279,7 +279,7 @@
     <div class="tab active" id="tab-assets" onclick="showTab('assets')"><span class="tab-icon">📋</span><span class="tab-label">Feed</span></div>
     <div class="tab" id="tab-profile" onclick="showTab('profile')"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></div>
     <div class="tab" id="tab-messages" onclick="showTab('messages')"><span class="tab-icon">✉️</span><span class="tab-label" id="tab-messages-label">Messages</span></div>
-    <div class="tab" id="tab-users" onclick="showTab('users')"><span class="tab-icon">🔍</span><span class="tab-label">Explore</span></div>
+    <div class="tab" id="tab-users" onclick="showTab('users')"><span class="tab-icon">🔍</span><span class="tab-label">Members</span></div>
     <div class="tab" id="tab-more" onclick="toggleMore()"><span class="tab-icon">⋯</span><span class="tab-label">More</span></div>
   </div>
   <div style="border-bottom:1px solid #222;margin-bottom:20px;" id="tab-border-desktop"></div>
@@ -291,7 +291,7 @@
     <div class="more-menu-item" onclick="closeMore();showTab('market')">🛒 Marketplace</div>
     <a href="/governance-portal" class="more-menu-item" style="color:#ccc;">⚖️ Governance</a>
     <a href="/bank-portal" class="more-menu-item" style="color:#4caf50;">🏦 Bank</a>
-    <div class="more-menu-item" onclick="closeMore();toggleNetworkStatus();window.scrollTo({top:0,behavior:'smooth'})">📡 Network Status</div>
+    <div class="more-menu-item" onclick="closeMore();toggleNetworkStatus()">📡 Network Status</div>
     <a href="/faq" class="more-menu-item" style="color:#ccc;">❓ FAQ</a>
     <a href="/bounties" class="more-menu-item" style="color:#ccc;">🎯 Bounties</a>
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid #222;">
@@ -719,6 +719,8 @@ async function loadUsers() {
   var el = document.getElementById('users-list');
   try {
     var users = await fetch('/users/').then(function(r){return r.json();});
+    var nodeData = await fetch('/federation/nodes').then(r => r.json()).catch(() => ({nodes:[]}));
+    var nodeOperators = new Set(nodeData.nodes.map(n => n.operator_handle));
     users.sort(function(a,b){ return b.total_score - a.total_score; });
     var html = '<div class="section-title">Network Participants (' + users.length + ')</div>';
     html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;">';
@@ -731,7 +733,7 @@ async function loadUsers() {
       html += '<div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:0.95rem;font-weight:700;color:#7c6af7;flex-shrink:0;">' + u.handle.charAt(0).toUpperCase() + '</div>';
       // Name + type
       html += '<div style="flex:1;min-width:0;">';
-      html += '<div style="font-size:0.92rem;font-weight:600;color:#fff;">' + esc(u.handle) + (isMe ? ' <span style="font-size:0.7rem;color:#7c6af7;font-weight:400">(you)</span>' : '') + '</div>';
+      html += '<div style="font-size:0.92rem;font-weight:600;color:#fff;">' + esc(u.handle) + (isMe ? ' <span style="font-size:0.7rem;color:#7c6af7;font-weight:400">(you)</span>' : '') + (nodeOperators.has(u.handle) ? ' <span style="font-size:0.68rem;background:#1a2a1a;color:#4caf50;border:1px solid #2a4a2a;border-radius:3px;padding:1px 5px;">node</span>' : '') + '</div>';
       html += '<div style="font-size:0.72rem;color:#444;">' + esc(u.agent_type || 'agent') + ' &nbsp;·&nbsp; <a href="/u/' + esc(u.handle) + '" style="color:#555;font-size:0.72rem;">view profile</a></div>';
       html += '</div>';
       // Stats
@@ -1270,17 +1272,14 @@ async function loadGov() {
 
 async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
   var options = await fetch('/governance/proposals/' + proposal.id + '/options').then(function(r){return r.json();});
-  var distinct_voters = options.length ? options[0].vote_count : 0;  // approximate — use quorum check
+  // In ranked voting, every voter ranks all options, so vote_count is same on all options = distinct voters
+  var distinct_voters = options.length ? Math.max(...options.map(o => o.vote_count || 0)) : 0;
   var quorum_needed = Math.max(1, Math.ceil(eligible_count * (proposal.quorum || 1.0)));
-  // Count distinct voters: each voter contributes n*(n+1)/2 total rank points
   var n = options.length;
-  var total_rank = options.reduce(function(s,o){ return s + (o.rank_total||0); }, 0);
-  var voters_who_voted = n > 0 ? Math.round(total_rank / (n*(n+1)/2)) : 0;
-  var min_rank = options.reduce(function(m,o){ return o.rank_total > 0 ? Math.min(m, o.rank_total) : m; }, 99999);
   var max_rank = options.reduce(function(m,o){ return Math.max(m, o.rank_total||0); }, 0);
 
-  var quorum_pct = quorum_needed > 0 ? Math.min(100, Math.round((voters_who_voted / quorum_needed) * 100)) : 100;
-  var quorum_met = voters_who_voted >= quorum_needed;
+  var quorum_pct = quorum_needed > 0 ? Math.min(100, Math.round((distinct_voters / quorum_needed) * 100)) : 100;
+  var quorum_met = distinct_voters >= quorum_needed;
   // Leading = lowest rank_total (ignore unvoted options with 0)
   var voted_opts = options.filter(function(o){ return o.rank_total > 0; });
   var leading = voted_opts.length ? voted_opts.reduce(function(a,b){ return a.rank_total <= b.rank_total ? a : b; }) : null;
@@ -1360,9 +1359,9 @@ async function buildPropCard(proposal, eligible_count, isClosed, is_eligible) {
     (proposal.description ? '<div class="prop-desc">' + esc(proposal.description) + '</div>' : '') +
     '<div class="quorum-track">' +
       '<div class="q-bar"><div class="q-fill' + (quorum_met ? ' q-met' : '') + '" style="width:' + quorum_pct + '%"></div></div>' +
-      '<div class="q-label">' + voters_who_voted + '/' + quorum_needed + ' voters · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</div>' +
+      '<div class="q-label">' + distinct_voters + '/' + quorum_needed + ' voters · ' + quorum_pct + '% of quorum' + (quorum_met ? ' ✓' : '') + '</div>' +
     '</div>' +
-    (voters_who_voted > 0 || isClosed ? '<div class="section-title" style="margin-top:12px;margin-bottom:8px;">Rank Totals (lower wins)</div>' + resultHtml : '') +
+    (distinct_voters > 0 || isClosed ? '<div class="section-title" style="margin-top:12px;margin-bottom:8px;">Rank Totals (lower wins)</div>' + resultHtml : '') +
     rankHtml +
     '<div class="v-msg" id="vmsg-' + proposal.id + '"></div>' +
     (isClosed && proposal.winning_option ? '<div class="winner-note">✓ Enacted: <strong>' + esc(proposal.winning_option) + '</strong></div>' : '') +
@@ -1948,29 +1947,40 @@ async function loadInbox() {
 function renderThreads(threads) {
   var el = document.getElementById('dm-threads');
   if (!el) return;
-  if (!threads.length) { el.innerHTML = '<p style="color:#444;font-size:0.8rem;">No messages yet.</p>'; return; }
+  if (!threads || !threads.length) { el.innerHTML = '<p style="color:#444;font-size:0.8rem;">No messages yet.</p>'; return; }
   el.innerHTML = threads.map(function(t) {
-    return '<div style="border:1px solid #1a1a1a;border-radius:6px;padding:12px;margin-bottom:8px;cursor:pointer;" onclick="openThread(\'' + esc(t.thread_id) + '\',\'' + esc(t.other_party) + '\')">' +
-      '<div style="display:flex;justify-content:space-between;">' +
-      '<span style="color:#7c6af7;font-size:0.85rem;">@' + esc(t.other_party) + '</span>' +
+    var msgsHtml = (t.messages || []).map(function(m) {
+      var isMe = ME && m.sender_handle === ME.handle;
+      return '<div style="margin:6px 0;text-align:' + (isMe?'right':'left') + ';">' +
+        '<span style="display:inline-block;background:' + (isMe?'#2a1a4a':'#1a1a2a') + ';border-radius:8px;padding:6px 10px;font-size:0.82rem;max-width:80%;">' +
+        esc(m.content) + '</span>' +
+        '<div style="font-size:0.68rem;color:#444;margin-top:2px;">' + (isMe?'you':'@'+esc(m.sender_handle)) + '</div>' +
+        '</div>';
+    }).join('');
+    return '<div data-thread="' + esc(t.thread_id) + '" style="border:1px solid #2a2a2a;border-radius:8px;margin-bottom:10px;overflow:hidden;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;background:#1a1a1a;" onclick="openThread(\'' + esc(t.thread_id) + '\',\'' + esc(t.other_party) + '\')">' +
+      '<span style="color:#7c6af7;font-size:0.85rem;font-weight:600;">@' + esc(t.other_party) + '</span>' +
       (t.unread > 0 ? '<span style="background:#7c6af7;color:#fff;border-radius:10px;padding:1px 8px;font-size:0.72rem;">' + t.unread + '</span>' : '') +
       '</div>' +
-      '<p style="margin:4px 0 0;font-size:0.8rem;color:#666;">' + esc((t.last_message||'').slice(0,80)) + '</p>' +
+      '<div class="thread-messages" style="padding:10px 14px;background:#0f0f0f;">' + msgsHtml + '</div>' +
       '</div>';
   }).join('');
+  // Update unread badge
+  var totalUnread = threads.reduce(function(s,t){ return s + (t.unread||0); }, 0);
+  var labelEl = document.getElementById('tab-messages-label');
+  if (labelEl) labelEl.innerHTML = totalUnread > 0 ? 'Messages <span style="background:#7c6af7;color:#fff;border-radius:10px;padding:0 5px;font-size:0.65rem;vertical-align:middle;">' + totalUnread + '</span>' : 'Messages';
 }
 
 function openThread(threadId, otherParty) {
   CURRENT_THREAD = threadId;
   var toEl = document.getElementById('dm-to');
   if (toEl) toEl.value = otherParty;
-  // Mark read
   if (KEY && ME) {
     fetch('/users/' + ME.handle + '/inbox/read', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
       body: JSON.stringify({thread_id: threadId})
-    });
+    }).then(function(){ loadInbox(); });
   }
 }
 
@@ -2003,12 +2013,32 @@ function closeMore() {
 }
 
 function toggleNetworkStatus() {
-  var el = document.getElementById('status-extra');
-  if (!el) return;
-  var isOpen = el.style.display === 'flex';
-  el.style.display = isOpen ? 'none' : 'flex';
-  var btn = document.getElementById('status-expand-btn');
-  if (btn) btn.textContent = isOpen ? 'Network ▾' : 'Network ▴';
+  var existing = document.getElementById('net-status-modal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'net-status-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:200;';
+  modal.onclick = function(e) { if(e.target===modal) modal.remove(); };
+  var s = document.getElementById('s-users');
+  var users = s ? s.textContent : '—';
+  var assets = document.getElementById('s-assets') ? document.getElementById('s-assets').textContent : '—';
+  var trades = document.getElementById('s-trades') ? document.getElementById('s-trades').textContent : '—';
+  var bank = document.getElementById('s-bank') ? document.getElementById('s-bank').textContent : '—';
+  var rate = document.getElementById('s-rate') ? document.getElementById('s-rate').textContent : '—';
+  var peers = document.getElementById('s-peers') ? document.getElementById('s-peers').textContent : '—';
+  modal.innerHTML = '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:28px;width:90%;max-width:380px;">' +
+    '<h3 style="color:#fff;font-size:1rem;margin-bottom:20px;">📡 Network Status</h3>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Users</div><div style="color:#fff;font-size:1.3rem;font-weight:700;">' + users + '</div></div>' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Assets</div><div style="color:#fff;font-size:1.3rem;font-weight:700;">' + assets + '</div></div>' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Trades</div><div style="color:#fff;font-size:1.3rem;font-weight:700;">' + trades + '</div></div>' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Bank</div><div style="color:#fff;font-size:1.3rem;font-weight:700;">' + bank + ' A</div></div>' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Rate</div><div style="color:#4caf50;font-size:1.3rem;font-weight:700;">' + rate + '/A</div></div>' +
+    '<div style="background:#111;border-radius:8px;padding:14px;"><div style="color:#555;font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Peers</div><div style="color:#fff;font-size:1.3rem;font-weight:700;">' + peers.replace('peers: ','') + '</div></div>' +
+    '</div>' +
+    '<button onclick="document.getElementById(\'net-status-modal\').remove()" style="width:100%;background:#2a2a2a;color:#888;border:none;padding:10px;border-radius:7px;cursor:pointer;">Close</button>' +
+    '</div>';
+  document.body.appendChild(modal);
 }
 
 function toggleKeyInput() {
