@@ -119,20 +119,31 @@
     .founder-meta { font-size: 0.75rem; color: #444; margin-top: 6px; }
   </style>
 
+
   <style>
-    .site-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 0; }
-    .site-tab { padding: 8px 20px; font-size: 0.85rem; color: #666; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-    .site-tab:hover { color: #aaa; }
-    .site-tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
-    .site-tab .tab-icon { font-size: 1rem; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 0; border-bottom: 1px solid #222; padding-bottom: 0; }
+    .tab { padding: 8px 20px; font-size: 0.85rem; color: #666; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; display: inline-flex; align-items: center; }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
+    .tab-icon { margin-right: 4px; }
+    .tab-label { }
+    #more-menu-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150; }
+    #more-menu { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; border-top: 1px solid #333; border-radius: 16px 16px 0 0; padding: 20px 20px 36px; z-index: 200; box-shadow: 0 -4px 24px rgba(0,0,0,0.5); }
+    .more-menu-item { display: block; padding: 13px 16px; color: #ccc; text-decoration: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; border-bottom: 1px solid #222; }
+    .more-menu-item:last-child { border-bottom: none; }
+    .more-menu-item:hover { background: #2a2a2a; color: #fff; }
+    @media (min-width: 601px) { #more-menu { bottom: auto; top: 50%; left: 50%; right: auto; width: 300px; border-radius: 12px; transform: translate(-50%, -50%); } }
     @media (max-width: 600px) {
-      .site-tabs { position: fixed; bottom: 0; top: auto; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; display: flex; justify-content: space-around; padding: 8px 0 12px; margin: 0; z-index: 100; }
-      .site-tab { flex: 1; text-align: center; font-size: 0.62rem; padding: 4px 2px 2px; flex-direction: column; align-items: center; gap: 1px; border-bottom: none !important; margin-bottom: 0 !important; }
-      .site-tab .tab-icon { font-size: 1.1rem; display: block; }
+      .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; display: flex; justify-content: space-around; padding: 8px 0 12px; margin: 0; z-index: 100; }
+      .tab { flex: 1; text-align: center; font-size: 0.7rem; padding: 6px 4px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; border-bottom: none !important; margin-bottom: 0 !important; }
+      .tab.active { border-bottom: none !important; }
+      .tab-icon { margin-right: 0; font-size: 1.1rem; display: block; }
+      .tab-label { font-size: 0.65rem; line-height: 1; }
       main { padding-bottom: 75px; }
     }
-    .status-bar-mini { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:10px 18px; margin-bottom:16px; display:flex; gap:20px; font-size:0.82rem; color:#aaa; flex-wrap:wrap; }
+    .status-bar-mini { background:#1a1a1a; border:1px solid #333; border-radius:8px; padding:10px 18px; margin:0 0 16px; display:flex; gap:20px; font-size:0.85rem; color:#aaa; flex-wrap:wrap; }
     .status-bar-mini strong { color:#e0e0e0; }
+    .tab-divider { border-bottom: 1px solid #222; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -150,6 +161,47 @@
     <span>Assets: <strong id="s-assets">—</strong></span>
     <span><strong id="s-rate" style="color:#4caf50">—</strong>/A</span>
   </div>
+  <div class="tabs">
+    <a href="/ui#assets" class="tab"><span class="tab-icon">📋</span><span class="tab-label">Feed</span></a>
+    <a href="/ui#profile" class="tab"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></a>
+    <a href="/ui#messages" class="tab"><span class="tab-icon">✉️</span><span class="tab-label">Messages</span></a>
+    <a href="/ui#users" class="tab"><span class="tab-icon">🔍</span><span class="tab-label">Members</span></a>
+    <div class="tab" onclick="toggleMore()"><span class="tab-icon">⋯</span><span class="tab-label">More</span></div>
+  </div>
+  <div class="tab-divider"></div>
+  <div id="more-menu-overlay" onclick="closeMore()"></div>
+  <div id="more-menu">
+    <div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #222;">More</div>
+    <a href="/governance-portal" class="more-menu-item">⚖️ Governance</a>
+    <a href="/bank-portal" class="more-menu-item">🏦 Bank</a>
+    <a href="/board" class="more-menu-item">⚡ Board Portal</a>
+    <a href="/committees" class="more-menu-item">🏛 Committees</a>
+    <a href="/faq" class="more-menu-item">❓ FAQ</a>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #222;">
+      <button onclick="closeMore()" style="width:100%;background:#2a2a2a;color:#888;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:0.85rem;">Close</button>
+    </div>
+  </div>
+  <script>
+  function toggleMore() {
+    var m = document.getElementById('more-menu');
+    var o = document.getElementById('more-menu-overlay');
+    var open = m.style.display === 'block';
+    m.style.display = open ? 'none' : 'block';
+    o.style.display = open ? 'none' : 'block';
+  }
+  function closeMore() {
+    var m = document.getElementById('more-menu');
+    var o = document.getElementById('more-menu-overlay');
+    if(m) m.style.display='none';
+    if(o) o.style.display='none';
+  }
+  fetch('/status').then(function(r){return r.json();}).then(function(s){
+    var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
+    var a=document.getElementById('s-assets'); if(a) a.textContent=s.assets;
+    var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
+  }).catch(function(){});
+  </script>
+
   <script>
   fetch('/status').then(function(r){return r.json();}).then(function(s){
     var u=document.getElementById('s-users'); if(u) u.textContent=s.users;
@@ -157,13 +209,6 @@
     var r=document.getElementById('s-rate'); if(r && s.usd_per_token) r.textContent='$'+Number(s.usd_per_token).toFixed(2);
   }).catch(function(){});
   </script>
-  <div class="site-tabs">
-    <a href="/ui#assets" class="site-tab"><span class="tab-icon">📋</span><span>Feed</span></a>
-    <a href="/ui#profile" class="site-tab"><span class="tab-icon">👤</span><span>Profile</span></a>
-    <a href="/ui#messages" class="site-tab"><span class="tab-icon">✉️</span><span>Messages</span></a>
-    <a href="/ui#users" class="site-tab"><span class="tab-icon">🔍</span><span>Members</span></a>
-    <a href="/ui#more" class="site-tab active"><span class="tab-icon">⋯</span><span>More</span></a>
-  </div>
 
 <main>
   <div class="page-header">
