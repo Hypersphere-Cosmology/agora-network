@@ -187,5 +187,22 @@ function openProposeNewCommittee() {
 
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
 </script>
+<script>
+(function() {
+  var VERSION_KEY = 'agora_version';
+  fetch('/federation/version', {cache: 'no-store'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var serverHash = d.codebase_hash || '';
+      var localHash = localStorage.getItem(VERSION_KEY) || '';
+      if (serverHash && localHash && serverHash !== localHash) {
+        localStorage.setItem(VERSION_KEY, serverHash);
+        window.location.reload(true);
+      } else if (serverHash) {
+        localStorage.setItem(VERSION_KEY, serverHash);
+      }
+    }).catch(function(){});
+})();
+</script>
 </body>
 </html>
