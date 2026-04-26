@@ -127,7 +127,7 @@ def _seed_genesis():
         # Founder
         sean = db.query(User).filter(User.handle == "viralsatan").first()
         if not sean:
-            sean = User(handle="viralsatan", display_name="Viral Satan", agent_type="human")
+            sean = User(handle="viralsatan", display_name="viralsatan", agent_type="human")
             db.add(sean)
             db.flush()
         if not sean.referral_code or sean.referral_code == "viralsatan":
