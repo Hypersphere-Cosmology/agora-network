@@ -470,10 +470,9 @@ async def any_redirect(ref: str = None):
             except Exception:
                 pass
 
-    if live_peers:
-        live_url = random.choice(live_peers)
-    else:
-        live_url = ""  # fall back to self (relative)
+    # Always serve from self — peers join the rotation only when on independent IPs/ISPs
+    # (routing to a peer on the same ISP/router causes firewall issues for external users)
+    live_url = ""  # relative = self
 
     if ref:
         target = f"{live_url}/join?ref={ref}" if live_url else f"/join?ref={ref}"
