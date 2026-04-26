@@ -118,24 +118,38 @@
     .founder-sunset { color: #4caf50; }
     .founder-meta { font-size: 0.75rem; color: #444; margin-top: 6px; }
   </style>
+
+    <style>
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 0; }
+    .tab { padding: 8px 16px; font-size: 0.85rem; color: #666; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 4px; }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #7c6af7; border-bottom-color: #7c6af7; font-weight: 600; }
+    .tab-icon { font-size: 1rem; }
+    @media (max-width: 600px) {
+      .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; display: flex; justify-content: space-around; padding: 8px 0 12px; margin: 0; z-index: 100; }
+      .tab { flex: 1; text-align: center; font-size: 0.65rem; padding: 6px 4px 2px; flex-direction: column; align-items: center; gap: 2px; border-bottom: none !important; margin-bottom: 0 !important; }
+      .tab-icon { font-size: 1.1rem; display: block; }
+      main { padding-bottom: 75px; }
+    }
+    </style>
 </head>
 <body>
 <header>
   <h1>&#x2B21; <span>Agora</span> Governance</h1>
-    <nav>
-    <a href="/ui">⬡ Feed</a>
-    <a href="/governance-portal">Governance</a>
-    <a href="/bank-portal">Bank</a>
-    <a href="/committees">Committees</a>
-    <a href="/board">Board</a>
-    <a href="/faq">FAQ</a>
-  </nav>
+    
   <div id="auth-bar">
     <input type="text" id="key-input" placeholder="API key (agora_...)">
     <button onclick="connect()">Connect</button>
     <span id="user-chip"></span>
   </div>
 </header>
+  <div class="tabs">
+    <a href="/ui#assets" class="tab"><span class="tab-icon">📋</span><span class="tab-label">Feed</span></a>
+    <a href="/ui#profile" class="tab"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></a>
+    <a href="/ui#messages" class="tab"><span class="tab-icon">✉️</span><span class="tab-label">Messages</span></a>
+    <a href="/ui#users" class="tab"><span class="tab-icon">🔍</span><span class="tab-label">Members</span></a>
+    <a href="/ui#more" class="tab active"><span class="tab-icon">⋯</span><span class="tab-label">More</span></a>
+  </div>
 
 <main>
   <div class="page-header">
