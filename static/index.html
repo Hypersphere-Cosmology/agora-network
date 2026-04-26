@@ -183,33 +183,86 @@
     .my-rating-row:last-child { border-bottom: none; }
     .my-rating-row .rtitle { font-size: 0.85rem; color: #ccc; flex: 1; }
     .my-rating-row .rscore { font-size: 0.85rem; font-weight: 700; color: #7c6af7; white-space: nowrap; margin-left: 12px; }
+
+    /* === Mobile-first redesign === */
+    /* Touch targets */
+    button { min-height: 44px; }
+    .buy-btn, .sell-btn { min-height: 44px; }
+    /* Tab icons */
+    .tab-icon { margin-right: 4px; }
+    /* Status bar extras */
+    #status-extra { display: none; }
+    #status-expand-btn { background: none; border: none; color: #555; font-size: 0.78rem; cursor: pointer; padding: 2px 6px; border-radius: 4px; margin-left: auto; min-height: auto; white-space: nowrap; }
+    #status-expand-btn:hover { color: #aaa; }
+    /* More menu overlay */
+    #more-menu-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150; }
+    #more-menu { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; border-top: 1px solid #333; border-radius: 16px 16px 0 0; padding: 20px 20px 36px; z-index: 200; box-shadow: 0 -4px 24px rgba(0,0,0,0.5); }
+    .more-menu-item { display: block; padding: 13px 16px; color: #ccc; text-decoration: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; border-bottom: 1px solid #222; }
+    .more-menu-item:last-child { border-bottom: none; }
+    .more-menu-item:hover { background: #2a2a2a; color: #fff; }
+    /* Desktop: more menu centered */
+    @media (min-width: 601px) {
+      #more-menu { bottom: auto; top: 50%; left: 50%; right: auto; width: 300px; border-radius: 12px; transform: translate(-50%, -50%); }
+    }
+    /* Mobile bottom nav + layout */
+    @media (max-width: 600px) {
+      .tabs { position: fixed; bottom: 0; left: 0; right: 0; background: #111; border-top: 1px solid #222; border-bottom: none; display: flex; justify-content: space-around; padding: 8px 0 env(safe-area-inset-bottom, 12px); margin: 0; z-index: 100; }
+      .tab { flex: 1; text-align: center; font-size: 0.7rem; padding: 6px 4px 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; border-bottom: none !important; margin-bottom: 0 !important; }
+      .tab.active { border-bottom: none !important; }
+      .tab-icon { margin-right: 0; font-size: 1.1rem; display: block; }
+      .tab-label { font-size: 0.65rem; line-height: 1; }
+      main { padding-bottom: 75px; }
+      #tab-border-desktop { display: none; }
+      /* Feed controls stack vertically */
+      .feed-controls { flex-direction: column !important; }
+      .feed-controls input, .feed-controls select { width: 100% !important; min-width: unset !important; flex: none !important; }
+      /* Asset cards full width */
+      .asset-card { width: 100%; }
+      /* Auth bar narrower */
+      #auth-bar input { width: 180px; font-size: 0.8rem; }
+      /* Register box mobile */
+      #register-box { padding: 20px; text-align: center; }
+      #register-box input { width: 100% !important; min-height: 48px; margin-right: 0; margin-bottom: 10px; display: block; font-size: 1rem; box-sizing: border-box; }
+      #register-box button { width: 100%; min-height: 48px; font-size: 1rem; padding: 12px; }
+      /* Submit asset full width on mobile */
+      #submit-asset-btn { width: 100%; }
+    }
   </style>
 </head>
 <body>
 
 <header>
   <h1>&#x2B21; <span>Agora</span></h1>
-  <div style="display:flex;gap:16px;font-size:0.8rem;">
-    <a href="/faq" style="color:#555;text-decoration:none;" onmouseover="this.style.color='#7c6af7'" onmouseout="this.style.color='#555'">FAQ</a>
-    <a href="/bounties" style="color:#555;text-decoration:none;" onmouseover="this.style.color='#7c6af7'" onmouseout="this.style.color='#555'">Bounties</a>
-    <a href="/bank-portal" style="color:#555;text-decoration:none;" onmouseover="this.style.color='#4caf50'" onmouseout="this.style.color='#555'">Bank</a>
-    <a href="/governance-portal" style="color:#555;text-decoration:none;" onmouseover="this.style.color='#7c6af7'" onmouseout="this.style.color='#555'">Governance</a>
-  </div>
   <div id="auth-bar">
+    <button id="key-toggle-btn" onclick="toggleKeyInput()" title="Enter API key" style="display:none;background:#2a2a2a;border:1px solid #444;color:#aaa;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:1rem;min-height:36px;">🔑</button>
     <input type="text" id="key-input" placeholder="Paste your API key (agora_...)">
     <button onclick="connect()">Connect</button>
     <span id="user-info"></span>
   </div>
 </header>
+<style>
+@media (max-width: 600px) {
+  #key-toggle-btn { display: inline-block !important; }
+  #key-input { display: none; transition: all 0.2s; }
+  #key-input.expanded { display: inline-block; }
+  #auth-bar button:not(#key-toggle-btn) { display: none; }
+  #auth-bar button#connect-btn { display: none; }
+  .key-expanded #key-input { display: inline-block; }
+  .key-expanded #auth-bar button { display: inline-block; }
+}
+</style>
 
 <main>
   <div id="status-bar">
     <span>Users: <strong id="s-users">&#8212;</strong></span>
     <span>Assets: <strong id="s-assets">&#8212;</strong></span>
-    <span>Trades: <strong id="s-trades">&#8212;</strong></span>
-    <span>Bank: <strong id="s-bank">&#8212;</strong> A</span>
     <span style="border-left:1px solid #222;padding-left:16px;"><strong id="s-rate" style="color:#4caf50">&#8212;</strong>/A <span id="s-rate-note" style="color:#444;font-size:0.72rem"></span></span>
-    <span id="s-peers" style="border-left:1px solid #222;padding-left:16px;color:#555;font-size:0.78rem">peers: —</span>
+    <button id="status-expand-btn" onclick="toggleNetworkStatus()">Network ▾</button>
+    <span id="status-extra" style="display:none;width:100%;margin-top:8px;gap:16px;flex-wrap:wrap;">
+      <span>Trades: <strong id="s-trades">&#8212;</strong></span>
+      <span>Bank: <strong id="s-bank">&#8212;</strong> A</span>
+      <span id="s-peers" style="color:#555;font-size:0.78rem">peers: —</span>
+    </span>
   </div>
 
   <div id="register-box" style="display:none">
@@ -222,20 +275,29 @@
     <div id="reg-msg"></div>
   </div>
 
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-    <div class="tabs" style="margin-bottom:0; border-bottom:none;">
-      <div class="tab active" onclick="showTab('assets')">Assets</div>
-      <div class="tab" onclick="showTab('market')">Marketplace</div>
-      <div class="tab" onclick="showTab('gov')">Governance</div>
-      <div class="tab" onclick="showTab('users')">Users</div>
-      <div class="tab" onclick="showTab('profile')">Profile</div>
-      <div class="tab" id="tab-messages" onclick="showTab('messages')">Messages</div>
-      <a href="/bank-portal" class="tab" style="text-decoration:none;color:#4caf50;" onmouseover="this.style.borderBottomColor='#4caf50'" onmouseout="this.style.borderBottomColor='transparent'">Bank</a>
-      <a href="/faq" class="tab" style="text-decoration:none;" onmouseover="this.style.borderBottomColor='#7c6af7'" onmouseout="this.style.borderBottomColor='transparent'">FAQ</a>
-    </div>
-    <button id="submit-asset-btn" onclick="toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;display:none">+ Submit Asset</button>
+  <div class="tabs" id="main-tabs">
+    <div class="tab active" id="tab-assets" onclick="showTab('assets')"><span class="tab-icon">📋</span><span class="tab-label">Feed</span></div>
+    <div class="tab" id="tab-profile" onclick="showTab('profile')"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></div>
+    <div class="tab" id="tab-messages" onclick="showTab('messages')"><span class="tab-icon">✉️</span><span class="tab-label" id="tab-messages-label">Messages</span></div>
+    <div class="tab" id="tab-users" onclick="showTab('users')"><span class="tab-icon">🔍</span><span class="tab-label">Explore</span></div>
+    <div class="tab" id="tab-more" onclick="toggleMore()"><span class="tab-icon">⋯</span><span class="tab-label">More</span></div>
   </div>
-  <div style="border-bottom:1px solid #222;margin-bottom:20px;"></div>
+  <div style="border-bottom:1px solid #222;margin-bottom:20px;" id="tab-border-desktop"></div>
+
+  <!-- More menu overlay -->
+  <div id="more-menu-overlay" onclick="closeMore()"></div>
+  <div id="more-menu">
+    <div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #222;">More</div>
+    <div class="more-menu-item" onclick="closeMore();showTab('market')">🛒 Marketplace</div>
+    <a href="/governance-portal" class="more-menu-item" style="color:#ccc;">⚖️ Governance</a>
+    <a href="/bank-portal" class="more-menu-item" style="color:#4caf50;">🏦 Bank</a>
+    <div class="more-menu-item" onclick="closeMore();toggleNetworkStatus()">📡 Network Status</div>
+    <a href="/faq" class="more-menu-item" style="color:#ccc;">❓ FAQ</a>
+    <a href="/bounties" class="more-menu-item" style="color:#ccc;">🎯 Bounties</a>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid #222;">
+      <button onclick="closeMore()" style="width:100%;background:#2a2a2a;color:#888;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:0.85rem;">Close</button>
+    </div>
+  </div>
 
   <!-- SUBMIT FORM -->
   <div id="submit-form" style="display:none;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:24px;margin-bottom:20px;">
@@ -275,9 +337,13 @@
     </div>
   </div>
 
-  <!-- ASSETS PANE -->
+  <!-- ASSETS / FEED PANE -->
   <div id="pane-assets" class="pane active">
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="section-title" style="margin:0">Feed</div>
+      <button id="submit-asset-btn" onclick="toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;display:none">+ Submit Asset</button>
+    </div>
+    <div class="feed-controls" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
       <input type="text" id="asset-search" placeholder="Search assets..." oninput="debounceAssets()" style="flex:1;min-width:160px;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;padding:7px 12px;border-radius:6px;font-size:0.84rem;">
       <select id="asset-sort" onchange="loadAssets()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:7px 10px;border-radius:6px;font-size:0.8rem;cursor:pointer;">
         <option value="new">Newest</option>
@@ -621,11 +687,14 @@ function showTab(name) {
     var el = document.getElementById('pane-' + p);
     if (el) el.classList.toggle('active', p === name);
   });
-  // Update tab active state by matching onclick attribute
-  document.querySelectorAll('.tab').forEach(function(t) {
-    var onclick = t.getAttribute('onclick') || '';
-    t.classList.toggle('active', onclick === "showTab('" + name + "')");
-  });
+  // Update tab active state — map pane names to tab IDs
+  var tabMap = { 'assets': 'tab-assets', 'profile': 'tab-profile', 'messages': 'tab-messages', 'users': 'tab-users', 'market': 'tab-more', 'gov': 'tab-more' };
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  var activeTabId = tabMap[name];
+  if (activeTabId) {
+    var activeTab = document.getElementById(activeTabId);
+    if (activeTab) activeTab.classList.add('active');
+  }
   if (name === 'market') { loadListings(); loadServices(); }
   if (name === 'users') loadUsers();
   if (name === 'gov') loadGov();
@@ -703,6 +772,14 @@ async function loadProfile() {
     html += '<div class="stat-card"><div class="label">Assets Submitted</div><div class="value">' + myAssets.length + '</div><div class="sub">' + myAssets.filter(function(a){return a.rating_count>0;}).length + ' rated</div></div>';
     var totalMinted = myAssets.reduce(function(s,a){return s + Number(a.tokens_minted||0);}, 0);
     html += '<div class="stat-card"><div class="label">Tokens Minted (your assets)</div><div class="value tokens">' + totalMinted.toFixed(4) + ' A</div><div class="sub">across all your submissions</div></div>';
+    html += '</div>';
+
+    // Quick actions
+    var refLink = window.location.origin + '/join?ref=' + ME.handle;
+    html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px;">';
+    html += '<button onclick="showTab(\'assets\');toggleSubmitForm()" style="background:#7c6af7;color:#fff;border:none;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">+ Submit Asset</button>';
+    html += '<button onclick="showTab(\'market\');setTimeout(function(){document.getElementById(\'transfer-form\').style.display=\'block\';},50)" style="background:#2a2a2a;color:#ccc;border:1px solid #444;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">↗ Send Tokens</button>';
+    html += '<button onclick="copyRefLink(\'' + refLink + '\')" id="ref-copy-btn" style="background:#2a2a2a;color:#ccc;border:1px solid #444;padding:10px 18px;border-radius:7px;cursor:pointer;font-size:0.85rem;flex:1;min-height:44px;">🔗 My Referral Link</button>';
     html += '</div>';
 
     // Score breakdown
@@ -838,7 +915,8 @@ async function boot() {
       ME.token_balance.toFixed(4) + ' A' +
       ' <span style="color:#4caf50;font-size:0.78rem">(≈$' + usdVal + ')</span>';
     document.getElementById('register-box').style.display = 'none';
-    document.getElementById('submit-asset-btn').style.display = 'inline-block';
+    var sab = document.getElementById('submit-asset-btn');
+    if (sab) sab.style.display = 'inline-block';
     var lsb = document.getElementById('list-svc-btn'); if(lsb) lsb.style.display = 'inline-block';
     document.getElementById('market-btns').style.display = 'flex';
     loadAssets();
@@ -1845,9 +1923,9 @@ async function loadInbox() {
     // Update unread badge on tab
     var threads = d.threads || [];
     var totalUnread = threads.reduce(function(sum, t) { return sum + (t.unread || 0); }, 0);
-    var tabEl = document.getElementById('tab-messages');
-    if (tabEl) {
-      tabEl.textContent = totalUnread > 0 ? 'Messages (' + totalUnread + ')' : 'Messages';
+    var labelEl = document.getElementById('tab-messages-label');
+    if (labelEl) {
+      labelEl.innerHTML = totalUnread > 0 ? 'Messages <span style="background:#7c6af7;color:#fff;border-radius:10px;padding:0 5px;font-size:0.65rem;vertical-align:middle;">' + totalUnread + '</span>' : 'Messages';
     }
   } catch(e) {}
 }
@@ -1893,6 +1971,49 @@ async function sendDM() {
     if (contentEl) contentEl.value = '';
     loadInbox();
   } catch(e) { alert('Failed to send: ' + e.message); }
+}
+
+// === Mobile redesign helpers ===
+function toggleMore() {
+  var m = document.getElementById('more-menu');
+  var overlay = document.getElementById('more-menu-overlay');
+  var isOpen = m.style.display === 'block';
+  m.style.display = isOpen ? 'none' : 'block';
+  overlay.style.display = isOpen ? 'none' : 'block';
+}
+
+function closeMore() {
+  document.getElementById('more-menu').style.display = 'none';
+  document.getElementById('more-menu-overlay').style.display = 'none';
+}
+
+function toggleNetworkStatus() {
+  var el = document.getElementById('status-extra');
+  if (!el) return;
+  var isOpen = el.style.display === 'flex';
+  el.style.display = isOpen ? 'none' : 'flex';
+  var btn = document.getElementById('status-expand-btn');
+  if (btn) btn.textContent = isOpen ? 'Network ▾' : 'Network ▴';
+}
+
+function toggleKeyInput() {
+  var input = document.getElementById('key-input');
+  var connectBtn = document.querySelector('#auth-bar button:not(#key-toggle-btn)');
+  if (!input) return;
+  var expanded = input.classList.toggle('expanded');
+  if (connectBtn) connectBtn.style.display = expanded ? 'inline-block' : 'none';
+  if (expanded) input.focus();
+}
+
+function copyRefLink(url) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() {
+      var btn = document.getElementById('ref-copy-btn');
+      if (btn) { var orig = btn.textContent; btn.textContent = '✓ Copied!'; setTimeout(function(){ btn.textContent = orig; }, 1800); }
+    });
+  } else {
+    prompt('Your referral link:', url);
+  }
 }
 </script>
 </body>
