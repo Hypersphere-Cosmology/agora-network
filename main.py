@@ -64,8 +64,6 @@ app.include_router(files.router)
 app.include_router(fiat.router)
 app.include_router(federation.router)
 app.include_router(social_router)
-app.include_router(committees_router)
-
 @app.get("/committees", include_in_schema=False)
 def committees_page():
     return FileResponse("static/committees.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
@@ -73,6 +71,8 @@ def committees_page():
 @app.get("/board", include_in_schema=False)
 def board_page():
     return FileResponse("static/board.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+app.include_router(committees_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

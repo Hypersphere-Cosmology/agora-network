@@ -130,6 +130,7 @@ def board_vote(action_id: int, payload: BoardVoteCreate, db: Session = Depends(g
 
 # ── List & Get ────────────────────────────────────────────────────────────────
 
+@router.get("/list")
 @router.get("")
 def list_committees(db: Session = Depends(get_db)):
     committees = db.query(Committee).filter(Committee.is_active == True).all()

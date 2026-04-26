@@ -10,7 +10,9 @@
     header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
     header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
     header h1 span { color: #4caf50; }
-    header nav a { color: #7c6af7; text-decoration: none; font-size: 0.85rem; margin-right: 16px; }
+    header nav { display: flex; gap: 16px; font-size: 0.85rem; }
+    header nav a { color: #7c6af7; text-decoration: none; }
+    header nav a:hover { text-decoration: underline; }
     #auth-bar { display: flex; gap: 8px; align-items: center; }
     #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 6px 10px; border-radius: 5px; font-size: 0.82rem; width: 220px; }
     #auth-bar button { background: #4caf50; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
@@ -97,7 +99,7 @@ async function boot() {
   } catch(e) { return; }
 
   // Get committees to find board
-  var d = await fetch('/committees').then(r => r.json());
+  var d = await fetch('/committees/list').then(r => r.json());
   BOARD = d.board || [];
 
   if (!BOARD.includes(ME.handle)) {
@@ -121,7 +123,7 @@ async function boot() {
 async function loadPendingActions() {
   try {
     // Fetch all committees and get their actions
-    var d = await fetch('/committees').then(r => r.json());
+    var d = await fetch('/committees/list').then(r => r.json());
     var pending = [];
     var recent = [];
     for (var c of d.committees) {

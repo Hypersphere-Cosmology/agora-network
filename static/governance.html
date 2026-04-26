@@ -259,14 +259,16 @@ async function buildCard(proposal, eligible_count, isClosed) {
   var quorum_met = eligible_count > 0 && (total_votes / eligible_count) >= proposal.quorum;
   var leading = options.reduce(function(a, b){ return a.vote_count >= b.vote_count ? a : b; }, options[0] || {});
 
-  // My vote
-  var my_vote_option = null;
+  // My rankings
+  var my_rankings = {};  // option_id -> rank position (1=best)
   if (ME) {
     try {
-      var votes = await fetch('/governance/proposals/' + proposal.id + '/votes?voter=' + ME.handle).then(function(r){return r.json();});
-      if (votes && votes.option_id) my_vote_option = votes.option_id;
+      var existingVotes = await fetch('/governance/proposals/' + proposal.id + '/votes?voter=' + ME.handle).then(function(r){return r.json();});
+      (existingVotes.rankings || []).forEach(function(v) { my_rankings[v.option_id] = v.rank; });
     } catch(e) {}
   }
+
+  var voted_opts = Object.keys(my_rankings);
 
   var card = document.createElement('div');
   card.className = 'proposal-card' + (isClosed ? ' closed' : '');
@@ -280,20 +282,43 @@ async function buildCard(proposal, eligible_count, isClosed) {
 
   var optionsHtml = '';
   options.forEach(function(opt) {
-    var pct = total_votes > 0 ? Math.round((opt.vote_count / total_votes) * 100) : 0;
-    var isLeading = !isClosed && opt.id === (leading || {}).id && opt.vote_count > 0;
-    var isWinner = isClosed && opt.label === proposal.winning_option;
-    var myVote = my_vote_option === opt.id;
-    optionsHtml +=
-      '<div class="option-row-vote' + (isLeading ? ' leading' : '') + (isWinner ? ' winner' : '') + (isClosed ? ' closed-opt' : '') + '" ' +
-      (!isClosed && ME ? 'onclick="castVote(' + proposal.id + ',' + opt.id + ', this)"' : '') + ' data-opt-id="' + opt.id + '">' +
-      (myVote ? '<div class="my-vote-dot" title="Your vote"></div>' : '<div style="width:8px"></div>') +
-      '<div class="option-label">' + esc(opt.label) + '</div>' +
-      '<div class="option-bar-wrap"><div class="option-bar-fill' + (isWinner ? ' winner-fill' : '') + '" style="width:' + pct + '%"></div></div>' +
+    var isLeading = !isClosed && voted_opts.length && leading && opt.id === leading.id;
+    var isWinner = isClosed && proposal.winning_option && opt.label === proposal.winning_option;
+    var myRank = my_rankings[opt.id];
+    var rankDisplay = myRank
+      ? ('<span style="background:#7c6af7;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;flex-shrink:0;">' + myRank + '</span>')
+      : '<span style="width:20px;height:20px;border-radius:50%;border:1px solid #333;display:inline-flex;align-items:center;justify-content:center;font-size:0.72rem;color:#444;flex-shrink:0;">?</span>';
+    optionsHtml += '<div class="option-row-vote' + (isLeading ? ' leading' : '') + (isWinner ? ' winner' : '') + (isClosed ? ' closed-opt' : '') + '" data-opt-id="' + opt.id + '" data-prop-id="' + proposal.id + '">' +
+      rankDisplay +
+      '<div style="flex:1;min-width:0;">' +
+      '<div style="font-size:0.88rem;color:#e0e0e0;">' + esc(opt.label) + '</div>' +
+      '</div>' +
       '<div class="option-count">' + opt.vote_count + ' vote' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
-      '<div class="option-pct">' + pct + '%</div>' +
+      (isLeading && !isClosed ? '<span style="font-size:0.7rem;color:#4caf50;">leading</span>' : '') +
+      (isWinner ? '<span style="font-size:0.7rem;color:#4caf50;font-weight:700;">✓ won</span>' : '') +
       '</div>';
   });
+
+  // Add ranking controls for open proposals when logged in
+  if (!isClosed && ME) {
+    optionsHtml += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #1a1a1a;">';
+    optionsHtml += '<div style="font-size:0.75rem;color:#555;margin-bottom:8px;">Rank your choices (1 = most preferred):</div>';
+    optionsHtml += '<div id="rank-inputs-' + proposal.id + '" style="display:flex;flex-direction:column;gap:6px;">';
+    options.forEach(function(opt) {
+      var myRank = my_rankings[opt.id] || '';
+      optionsHtml += '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<input type="number" min="1" max="' + options.length + '" value="' + myRank + '" placeholder="#" ' +
+        'id="rank-' + proposal.id + '-' + opt.id + '" ' +
+        'style="width:50px;background:#111;border:1px solid #333;color:#e0e0e0;padding:4px 6px;border-radius:4px;font-size:0.82rem;text-align:center;">' +
+        '<span style="font-size:0.82rem;color:#aaa;">' + esc(opt.label) + '</span>' +
+        '</div>';
+    });
+    optionsHtml += '</div>';
+    optionsHtml += '<button onclick="submitRanking(' + proposal.id + ', ' + JSON.stringify(options.map(function(o){return o.id;})) + ')" ' +
+      'style="margin-top:10px;background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:5px;cursor:pointer;font-size:0.82rem;">Submit Ranking</button>';
+    optionsHtml += '<div id="vmsg-' + proposal.id + '" style="margin-top:6px;font-size:0.8rem;color:#888;"></div>';
+    optionsHtml += '</div>';
+  }
 
   var winnerBanner = (isClosed && proposal.winning_option)
     ? '<div class="winner-banner">Winner: <strong>' + esc(proposal.winning_option) + '</strong></div>' : '';
@@ -306,32 +331,55 @@ async function buildCard(proposal, eligible_count, isClosed) {
     '<div class="prop-meta">Proposal #' + proposal.id + ' · ' + Math.round((proposal.quorum || 0.5) * 100) + '% quorum required</div>' +
     '<div class="quorum-row">' + quorumFill + quorumLabel + '</div>' +
     '<div class="options" id="opts-' + proposal.id + '">' + optionsHtml + '</div>' +
-    '<div class="vote-msg" id="vmsg-' + proposal.id + '"></div>' +
+    (!isClosed ? '' : '<div class="vote-msg" id="vmsg-' + proposal.id + '"></div>') +
     winnerBanner +
     (canClose ? '<div class="close-btn" id="close-btn-' + proposal.id + '" style="display:block" onclick="closeProposal(' + proposal.id + ')">Close & finalize (quorum met)</div>' : '');
 
   return card;
 }
 
-async function castVote(proposalId, optionId, rowEl) {
+async function submitRanking(proposalId, optionIds) {
   if (!ME) { alert('Connect your API key to vote.'); return; }
   var msg = document.getElementById('vmsg-' + proposalId);
-  msg.style.color = '#888'; msg.textContent = 'Voting...';
+
+  // Collect rankings from inputs
+  var seen_ranks = new Set();
+  var valid = true;
+  var n = optionIds.length;
+
+  // Build array: sort options by their rank input
+  var ranked = [];
+  for (var i = 0; i < optionIds.length; i++) {
+    var inp = document.getElementById('rank-' + proposalId + '-' + optionIds[i]);
+    var rank = inp ? parseInt(inp.value) : 0;
+    if (!rank || rank < 1 || rank > n) { valid = false; break; }
+    if (seen_ranks.has(rank)) { valid = false; break; }
+    seen_ranks.add(rank);
+    ranked.push({id: optionIds[i], rank: rank});
+  }
+
+  if (!valid || ranked.length !== n) {
+    if (msg) { msg.style.color='#f66'; msg.textContent = 'Please assign a unique rank (1-' + n + ') to each option.'; }
+    return;
+  }
+
+  // Sort by rank ascending → rankings array (rank 1 first = most preferred)
+  ranked.sort(function(a,b){return a.rank - b.rank;});
+  var rankings = ranked.map(function(r){return r.id;});
+
+  if (msg) { msg.style.color='#888'; msg.textContent = 'Submitting...'; }
   try {
     var r = await api('/governance/proposals/' + proposalId + '/vote', 'POST', {
       voter_handle: ME.handle,
-      option_id: optionId
+      rankings: rankings
     });
-    msg.style.color = '#4caf50';
-    msg.textContent = 'Vote recorded. ' + r.total_votes + '/' + r.eligible_voters + ' votes cast.';
-    if (r.quorum_met) {
-      msg.textContent += ' Quorum met — proposal can be closed.';
-      var cb = document.getElementById('close-btn-' + proposalId);
-      if (cb) cb.style.display = 'block';
+    if (msg) {
+      msg.style.color = '#4caf50';
+      msg.textContent = 'Vote recorded! ' + r.voters + '/' + r.eligible_voters + ' voters · ' + (r.quorum_met ? 'Quorum met!' : 'Quorum not yet met');
     }
-    setTimeout(loadProposals, 800);
+    setTimeout(loadProposals, 1000);
   } catch(e) {
-    msg.style.color = '#f66'; msg.textContent = e.message;
+    if (msg) { msg.style.color='#f66'; msg.textContent = e.message; }
   }
 }
 

@@ -2040,17 +2040,21 @@ function openThread(threadId, otherParty) {
 }
 
 async function sendDM() {
-  if (!KEY || !ME) return;
+  if (!KEY) { alert('Connect your API key first.'); return; }
+  if (!ME) { alert('Not logged in.'); return; }
   var toEl = document.getElementById('dm-to');
   var contentEl = document.getElementById('dm-content');
   var to = toEl ? toEl.value.trim().replace('@','') : '';
   var content = contentEl ? contentEl.value.trim() : '';
-  if (!to || !content) return;
+  if (!to) { alert('Enter a recipient handle.'); return; }
+  if (!content) { alert('Enter a message.'); return; }
   try {
     await api('/users/' + to + '/dm', 'POST', {content: content, thread_id: CURRENT_THREAD || null});
     if (contentEl) contentEl.value = '';
+    CURRENT_THREAD = null;
+    if (toEl) toEl.value = '';
     loadInbox();
-  } catch(e) { alert('Failed to send: ' + e.message); }
+  } catch(e) { alert('Send failed: ' + e.message); }
 }
 
 // === Mobile redesign helpers ===

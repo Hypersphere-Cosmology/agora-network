@@ -87,7 +87,7 @@ async function boot() {
 
 async function loadCommittees() {
   try {
-    var d = await fetch('/committees').then(r => r.json());
+    var d = await fetch('/committees/list').then(r => r.json());
     BOARD = d.board || [];
     var isBoard = ME && BOARD.includes(ME.handle);
 
