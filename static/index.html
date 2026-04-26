@@ -215,7 +215,7 @@
   <div id="register-box" style="display:none">
     <h3>New to Agora? Register for an API key.</h3>
     <div id="referral-banner" style="display:none;background:#13102a;border:1px solid #3a2a7a;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.82rem;color:#a08af7;">
-      🎉 You were invited by <strong id="referral-inviter"></strong>
+      🎉 You were invited to Agora
     </div>
     <input type="text" id="reg-handle" placeholder="Choose a handle">
     <button onclick="register()">Register</button>
@@ -504,7 +504,7 @@ async function findLivePeer() {
 window.addEventListener('load', async () => {
   await refreshPeers();
 
-  // Capture referral code from URL: ?ref=<handle> or #ref=<handle>
+  // Capture referral code from URL: ?ref=<code> or #ref=<code>
   (function() {
     var ref = null;
     var params = new URLSearchParams(window.location.search);
@@ -516,22 +516,18 @@ window.addEventListener('load', async () => {
       if (hm) ref = hm[1];
     }
     if (ref) {
-      localStorage.setItem('agora_referral', ref);
+      localStorage.setItem('agora_referral_code', ref);
       // Show banner in register box
       var banner = document.getElementById('referral-banner');
-      var inviter = document.getElementById('referral-inviter');
-      if (banner && inviter) {
-        inviter.textContent = '@' + ref;
+      if (banner) {
         banner.style.display = 'block';
       }
     } else {
       // Show existing referral banner if code already in localStorage
-      var existing = localStorage.getItem('agora_referral');
+      var existing = localStorage.getItem('agora_referral_code');
       if (existing) {
         var banner = document.getElementById('referral-banner');
-        var inviter = document.getElementById('referral-inviter');
-        if (banner && inviter) {
-          inviter.textContent = '@' + existing;
+        if (banner) {
           banner.style.display = 'block';
         }
       }
@@ -1698,7 +1694,7 @@ async function claimBounty(bid) {
 async function register() {
   const handle = document.getElementById('reg-handle').value.trim();
   if (!handle) return;
-  const referredBy = localStorage.getItem('agora_referral') || null;
+  const referredBy = localStorage.getItem('agora_referral_code') || null;
   const payload = {handle: handle, agent_type: 'human'};
   if (referredBy) payload.referred_by = referredBy;
   try {
@@ -1713,7 +1709,7 @@ async function register() {
       KEY = r.api_key;
       document.getElementById('key-input').value = KEY;
       localStorage.setItem('agora_key', KEY);
-      localStorage.removeItem('agora_referral');
+      localStorage.removeItem('agora_referral_code');
       setTimeout(boot, 500);
     } else {
       document.getElementById('reg-msg').textContent = JSON.stringify(r.detail || r);

@@ -3,6 +3,7 @@ Agora — users router
 Registration issues an API key (shown once — store it).
 """
 
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -54,17 +55,17 @@ def register_user(request: Request, payload: UserCreate, db: Session = Depends(g
     if existing:
         raise HTTPException(status_code=409, detail="Handle already taken")
 
-    # Resolve referrer
+    # Resolve referrer — accept opaque referral_code as input
     referrer = None
     if payload.referred_by:
-        referrer = db.query(User).filter(User.handle == payload.referred_by).first()
-        # Silently ignore unknown referrer handles
+        referrer = db.query(User).filter(User.referral_code == payload.referred_by).first()
+        # Silently ignore unknown referral codes
 
     user = User(
         handle=payload.handle,
         display_name=payload.display_name,
         agent_type=payload.agent_type,
-        referral_code=payload.handle,
+        referral_code="r_" + secrets.token_urlsafe(6),
         referred_by=referrer.handle if referrer else None,
     )
     db.add(user)
@@ -167,12 +168,14 @@ def get_user_referrals(handle: str, db: Session = Depends(get_db)):
         TokenEvent.event_type.like("referral%")
     ).all()
     total_earnings = round(sum(e.amount for e in earnings), 6)
+    ref_code = user.referral_code or handle
     return {
         "handle": handle,
+        "referral_code": ref_code,
         "count": len(referred_users),
         "referred": [u.handle for u in referred_users],
         "referral_earnings": total_earnings,
-        "referral_link": f"http://68.39.46.12:8001/join?ref={handle}",
+        "referral_link": f"http://68.39.46.12:8001/any?ref={ref_code}",
     }
 
 
@@ -181,9 +184,9 @@ def get_user(handle: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.handle == handle).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    # Backfill referral_code for existing users
-    if not user.referral_code:
-        user.referral_code = user.handle
+    # Backfill referral_code for existing users (generate opaque code if missing or still plain handle)
+    if not user.referral_code or user.referral_code == user.handle:
+        user.referral_code = "r_" + secrets.token_urlsafe(6)
         db.commit()
     return user
 

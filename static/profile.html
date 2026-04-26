@@ -151,7 +151,8 @@ async function loadProfile(handle) {
     // Referral section
     html += '<div class="section-title">Referral Program</div>';
     html += '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:24px;">';
-    var refLink = 'http://68.39.46.12:8001/join?ref=' + esc(user.handle);
+    var refCode = (referralInfo && referralInfo.referral_code) ? referralInfo.referral_code : (user.referral_code || user.handle);
+    var refLink = 'http://68.39.46.12:8001/any?ref=' + esc(refCode);
     html += '<div style="margin-bottom:12px;">';
     html += '<div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Your Referral Link</div>';
     html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';

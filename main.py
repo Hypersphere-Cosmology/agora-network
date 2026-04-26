@@ -105,6 +105,10 @@ def _seed_genesis():
     from db import SessionLocal, ApiKey
     from auth import generate_api_key, store_api_key, _hash_key
     import os
+    import hashlib
+
+    def stable_ref_code(handle):
+        return "r_" + hashlib.sha256(handle.encode()).hexdigest()[:8]
 
     db = SessionLocal()
     try:
@@ -117,8 +121,8 @@ def _seed_genesis():
             sean = User(handle="sean", display_name="Sean Myers", agent_type="human")
             db.add(sean)
             db.flush()
-        if not sean.referral_code:
-            sean.referral_code = "sean"
+        if not sean.referral_code or sean.referral_code == "sean":
+            sean.referral_code = stable_ref_code("sean")
 
         if not db.query(ApiKey).filter(ApiKey.user_id == sean.id).first():
             raw = generate_api_key()
@@ -131,8 +135,8 @@ def _seed_genesis():
             ava = User(handle="ava", display_name="Ava", agent_type="agent")
             db.add(ava)
             db.flush()
-        if not ava.referral_code:
-            ava.referral_code = "ava"
+        if not ava.referral_code or ava.referral_code == "ava":
+            ava.referral_code = stable_ref_code("ava")
 
         if not db.query(ApiKey).filter(ApiKey.user_id == ava.id).first():
             raw = generate_api_key()

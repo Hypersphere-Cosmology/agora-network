@@ -438,8 +438,8 @@ def get_shard_map(db: Session = Depends(get_db)):
 
 
 @router.get("/any")
-async def any_redirect():
-    """Redirect to a random live peer's UI. Falls back to self if no peers live."""
+async def any_redirect(ref: str = None):
+    """Redirect to a random live peer's UI (or join page if ref provided). Falls back to self if no peers live."""
     import httpx
     import random
     from fastapi.responses import RedirectResponse
@@ -462,10 +462,16 @@ async def any_redirect():
                 pass
 
     if live_peers:
-        chosen = random.choice(live_peers)
-        return RedirectResponse(url=f"{chosen}/ui", status_code=302)
+        live_url = random.choice(live_peers)
     else:
-        return RedirectResponse(url="/ui", status_code=302)
+        live_url = ""  # fall back to self (relative)
+
+    if ref:
+        target = f"{live_url}/join?ref={ref}" if live_url else f"/join?ref={ref}"
+    else:
+        target = f"{live_url}/ui" if live_url else "/ui"
+
+    return RedirectResponse(url=target, status_code=302)
 
 
 @router.get("/my-shard")
