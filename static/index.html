@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Agora</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -661,7 +664,7 @@ async function loadProfile() {
           html += '<span class="order-status-badge ' + statusCls + '">' + esc(o.status) + '</span>';
           html += '<span style="font-size:0.75rem;color:#555;">' + role + ' · ' + Number(o.total_tokens).toFixed(2) + ' A</span>';
           if (canFeedback && role === 'buyer') {
-            html += '<button onclick="showFeedbackForm(' + o.order_id + ','' + esc(o.provider) + '')" style="background:none;border:1px solid #333;color:#7c6af7;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;">Leave Review</button>';
+            html += '<button onclick="showFeedbackForm(' + o.order_id + ',\'' + esc(o.provider) + '\')" style="background:none;border:1px solid #333;color:#7c6af7;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:0.75rem;">Leave Review</button>';
           }
           html += '</div>';
           html += '<div id="fb-form-' + o.order_id + '" style="display:none;padding:10px 0;border-bottom:1px solid #1e1e1e;">';
