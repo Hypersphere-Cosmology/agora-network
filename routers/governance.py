@@ -379,6 +379,30 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
             db.close()
 
 
+    # User removal by vote: title contains "remove user" or "ban user", winning label is the handle
+    if ("remove user" in title_lower or "ban user" in title_lower or "remove account" in title_lower):
+        # winning_label should be the handle to remove
+        handle_to_remove = winning_label.strip().lstrip('@').lower()
+        db = SessionLocal()
+        try:
+            from db import User as UserModel, ApiKey
+            target = db.query(UserModel).filter(UserModel.handle == handle_to_remove).first()
+            if target and handle_to_remove not in {"viralsatan", "ava"}:  # founders protected
+                # Revoke API keys
+                db.query(ApiKey).filter(ApiKey.user_id == target.id).delete()
+                # Zero out scores and balance
+                target.total_score = 0.0
+                target.submission_score = 0.0
+                target.rater_score = 0.0
+                target.trade_score = 0.0
+                target.token_balance = 0.0
+                target.handle = f"[removed_{target.id}]"
+                db.commit()
+                print(f"[governance] User @{handle_to_remove} removed by proposal #{proposal.id}")
+        finally:
+            db.close()
+
+
 @router.get("/parameters")
 def get_parameters(db: Session = Depends(get_db)):
     """All governance-adjustable parameters with current values and proposal format."""
