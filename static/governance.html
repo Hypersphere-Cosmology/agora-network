@@ -204,11 +204,11 @@ async function boot() {
     ME = await api('/users/me');
     document.getElementById('user-chip').innerHTML =
       '<strong>' + esc(ME.handle) + '</strong> &nbsp;' + ME.total_score.toFixed(1) + ' pts';
-    var eligible = ME.total_score >= 20;
+    var eligible = ME.total_score >= 10;
     document.getElementById('eligibility-bar').style.display = 'block';
     document.getElementById('eligibility-bar').innerHTML = eligible
-      ? '<span class="eligible">✓ You are eligible to vote and propose (score ' + ME.total_score.toFixed(1) + ' ≥ 20)</span>'
-      : '<span class="ineligible">You need a score ≥ 20 to vote or propose. Current: ' + ME.total_score.toFixed(1) + '. Rate assets and submit work to build score.</span>';
+      ? '<span class="eligible">✓ You are eligible to vote and propose (score ' + ME.total_score.toFixed(1) + ' ≥ 10)</span>'
+      : '<span class="ineligible">You need a score ≥ 10 to vote or propose. Current: ' + ME.total_score.toFixed(1) + '. Rate assets and submit work to build score.</span>';
     if (eligible) document.getElementById('propose-btn').style.display = 'inline-block';
   } catch(e) {
     document.getElementById('user-chip').innerHTML = '<span style="color:#f66">Invalid key</span>';
@@ -220,7 +220,7 @@ async function loadProposals() {
   try {
     var proposals = await fetch('/governance/proposals').then(function(r){return r.json();});
     var users = await fetch('/users/').then(function(r){return r.json();});
-    var eligible_count = users.filter(function(u){ return u.total_score >= 20; }).length;
+    var eligible_count = users.filter(function(u){ return u.total_score >= 10; }).length;
 
     var open = proposals.filter(function(p){ return !p.is_closed; });
     var closed = proposals.filter(function(p){ return p.is_closed; });
@@ -229,7 +229,7 @@ async function loadProposals() {
     var closedEl = document.getElementById('closed-section');
 
     if (!open.length && !closed.length) {
-      openEl.innerHTML = '<div class="empty-state">No proposals yet.<br><span style="font-size:0.82rem;color:#444">Anyone with score ≥ 20 can submit a proposal.</span></div>';
+      openEl.innerHTML = '<div class="empty-state">No proposals yet.<br><span style="font-size:0.82rem;color:#444">Anyone with score ≥ 10 can submit a proposal.</span></div>';
       closedEl.innerHTML = '';
       return;
     }
@@ -248,7 +248,7 @@ async function loadProposals() {
 
 async function buildCard(proposal, eligible_count, isClosed) {
   var options = await fetch('/governance/proposals/' + proposal.id + '/options').then(function(r){return r.json();});
-  var total_votes = options.reduce(function(s, o){ return s + o.vote_count; }, 0);
+  var total_votes = options.length > 0 ? Math.max.apply(null, options.map(function(o){ return o.vote_count; })) : 0; // distinct voters = highest vote_count on any option (ranked ballot)
   var quorum_pct = eligible_count > 0 ? Math.min(100, Math.round((total_votes / (eligible_count * proposal.quorum)) * 100)) : 0;
   var quorum_met = eligible_count > 0 && (total_votes / eligible_count) >= proposal.quorum;
   var leading = options.reduce(function(a, b){ return a.vote_count >= b.vote_count ? a : b; }, options[0] || {});
