@@ -87,6 +87,32 @@
 
     .empty-state { text-align: center; padding: 48px; color: #333; }
     .section-title { font-size: 0.75rem; font-weight: 600; color: #444; text-transform: uppercase; letter-spacing: 1px; margin: 28px 0 12px; }
+
+    /* Tab nav */
+    .tab-nav { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #222; }
+    .tab-btn { background: none; border: none; color: #555; font-size: 0.88rem; padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
+    .tab-btn.active { color: #7c6af7; border-bottom-color: #7c6af7; }
+    .tab-btn:hover:not(.active) { color: #aaa; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Parameters table */
+    .param-group { margin-bottom: 28px; }
+    .param-group-title { font-size: 0.7rem; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #1e1e1e; }
+    .param-card { background: #1a1a1a; border: 1px solid #222; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: start; }
+    .param-name { font-size: 0.9rem; font-weight: 600; color: #e0e0e0; }
+    .param-value { font-size: 1rem; font-weight: 700; color: #7c6af7; text-align: right; white-space: nowrap; }
+    .param-desc { font-size: 0.78rem; color: #555; line-height: 1.4; grid-column: 1 / -1; margin-top: 2px; }
+    .param-how { font-size: 0.74rem; color: #3a3a4a; grid-column: 1 / -1; margin-top: 4px; }
+    .param-how span { color: #555; }
+    .param-immutable { opacity: 0.5; }
+
+    /* Founder status banner */
+    .founder-banner { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 16px; margin-top: 24px; font-size: 0.82rem; }
+    .founder-banner .fb-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .founder-active { color: #f5a623; }
+    .founder-sunset { color: #4caf50; }
+    .founder-meta { font-size: 0.75rem; color: #444; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -141,8 +167,24 @@
     </div>
   </div>
 
-  <div id="open-section"></div>
-  <div id="closed-section"></div>
+  <!-- Tab navigation -->
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('proposals')">Proposals</button>
+    <button class="tab-btn" onclick="switchTab('parameters')">Network Parameters</button>
+  </div>
+
+  <!-- Proposals tab -->
+  <div id="tab-proposals" class="tab-pane active">
+    <div id="open-section"></div>
+    <div id="closed-section"></div>
+  </div>
+
+  <!-- Parameters tab -->
+  <div id="tab-parameters" class="tab-pane">
+    <div id="params-content">
+      <div class="empty-state" style="color:#333">Loading parameters...</div>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -345,6 +387,72 @@ async function api(path, method, body) {
   return d;
 }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    if (b.textContent.toLowerCase().indexOf(name === 'proposals' ? 'proposal' : 'param') !== -1) {
+      b.classList.add('active');
+    }
+  });
+  if (name === 'parameters') loadParameters();
+}
+
+// ── Network Parameters ─────────────────────────────────────────────────────
+async function loadParameters() {
+  var el = document.getElementById('params-content');
+  try {
+    var data = await fetch('/governance/parameters').then(function(r) { return r.json(); });
+    var params = data.parameters;
+
+    // Group by category
+    var groups = { economy: [], governance: [], content: [] };
+    params.forEach(function(p) { (groups[p.category] || groups.content).push(p); });
+
+    var categoryLabels = { economy: 'Economy', governance: 'Governance', content: 'Content' };
+    var html = '';
+
+    Object.keys(groups).forEach(function(cat) {
+      if (!groups[cat].length) return;
+      html += '<div class="param-group">';
+      html += '<div class="param-group-title">' + esc(categoryLabels[cat]) + '</div>';
+      groups[cat].forEach(function(p) {
+        var immutable = p.proposal_format === 'N/A — immutable by design';
+        html += '<div class="param-card' + (immutable ? ' param-immutable' : '') + '">';
+        html += '<div class="param-name">' + esc(p.name) + '</div>';
+        html += '<div class="param-value">' + esc(p.display) + '</div>';
+        html += '<div class="param-desc">' + esc(p.description) + '</div>';
+        if (immutable) {
+          html += '<div class="param-how">🔒 Immutable by design</div>';
+        } else {
+          html += '<div class="param-how">To propose a change: <span>' + esc(p.proposal_format) + '</span></div>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+    // Founder status banner
+    var founderHtml = '<div class="founder-banner"><div class="fb-row">';
+    if (data.founders_active) {
+      founderHtml += '<span class="founder-active">⚡ Founders active — quorum can be bypassed</span>';
+      founderHtml += '<span style="font-size:0.8rem;color:#555">' + data.users_until_sunset + ' users until decentralized governance only</span>';
+    } else {
+      founderHtml += '<span class="founder-sunset">✓ Decentralized — founder override disabled</span>';
+      founderHtml += '<span style="font-size:0.8rem;color:#4caf50">' + data.user_count + ' users · governance is fully community-controlled</span>';
+    }
+    founderHtml += '</div>';
+    founderHtml += '<div class="founder-meta">Total users: ' + data.user_count + ' · Sunset threshold: ' + (data.users_until_sunset + data.user_count) + ' users</div>';
+    founderHtml += '</div>';
+
+    el.innerHTML = html + founderHtml;
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state" style="color:#555">Failed to load parameters: ' + esc(e.message) + '</div>';
+  }
+}
 </script>
 </body>
 </html>

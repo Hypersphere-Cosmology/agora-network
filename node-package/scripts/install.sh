@@ -7,7 +7,7 @@
 
 set -e
 
-EXPECTED_HASH="3a403a52d955f16cde1731bd1ce06912935922cd6b2dbb284db3f865c350c772"
+EXPECTED_HASH="e20fc046725c288ecd69aab9b915a7df9421ee830643280e3a03eb0a280491a3"
 AGORA_DIR="$HOME/agora-node"
 
 # ── 1. Find a live node ──────────────────────────────────────────────────────
@@ -169,6 +169,20 @@ MY_URL=$MY_URL
 SEED_NODE=$LIVE_NODE
 PORT=8002
 ENVEOF
+
+# ── 10. Set up auto-updater (optional) ───────────────────────────────────────
+echo ""
+read -p "Set up automatic updates? Checks for updates hourly from your peers. (y/N): " setup_auto
+if [ "$setup_auto" = "y" ] || [ "$setup_auto" = "Y" ]; then
+    chmod +x "$AGORA_DIR/scripts/auto_update.sh"
+    PLIST_SRC="$AGORA_DIR/node-package/launchd/ai.agora.autoupdate.plist"
+    PLIST_DEST="$HOME/Library/LaunchAgents/ai.agora.autoupdate.plist"
+    sed "s|__AGORA_DIR__|$AGORA_DIR|g" "$PLIST_SRC" > "$PLIST_DEST"
+    launchctl load "$PLIST_DEST"
+    echo "✅ Auto-updater installed — checks every hour from network peers"
+else
+    echo "ℹ️  To update manually: bash $AGORA_DIR/scripts/auto_update.sh"
+fi
 
 echo ""
 echo "=== Node Ready ==="

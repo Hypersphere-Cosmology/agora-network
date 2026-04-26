@@ -483,6 +483,20 @@ async def any_redirect(ref: str = None):
     return RedirectResponse(url=target, status_code=302)
 
 
+@router.get("/version")
+def get_version():
+    """Returns current codebase hash for lightweight update checking."""
+    cfg_file = Path(__file__).parent.parent / "node-package" / "config" / "node-config.json"
+    if cfg_file.exists():
+        cfg = json.loads(cfg_file.read_text())
+        return {
+            "codebase_hash": cfg.get("codebase_hash", ""),
+            "agora_version": cfg.get("agora_version", "0.1.0"),
+            "ruleset": cfg.get("ruleset", "v18")
+        }
+    return {"codebase_hash": "", "agora_version": "0.1.0", "ruleset": "v18"}
+
+
 @router.get("/my-shard")
 def my_shard(db: Session = Depends(get_db)):
     """Return only assets that node_1 is responsible for (based on consistent hashing)."""

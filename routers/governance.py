@@ -330,6 +330,101 @@ def _auto_execute(proposal: "Proposal", winning_label: str):
                 db.close()
 
 
+@router.get("/parameters")
+def get_parameters(db: Session = Depends(get_db)):
+    """All governance-adjustable parameters with current values and proposal format."""
+    from db import StorageConfig
+
+    def cfg(key, default):
+        row = db.query(StorageConfig).filter(StorageConfig.key == key).first()
+        return float(row.value_text) if row and row.value_text else default
+
+    user_count = db.query(User).count()
+
+    # Trade fee rate lives in config.py (in-memory), not StorageConfig
+    trade_fee = _config.get_fee_rate()
+
+    return {
+        "parameters": [
+            {
+                "name": "Trade Fee",
+                "key": "trade_fee_rate",
+                "current_value": trade_fee,
+                "display": f"{trade_fee*100:.1f}%",
+                "description": "Fee on all token transfers and bounty claims. Goes to the bank.",
+                "proposal_format": "Include 'fee' in title, winning option as '2%' or '0.5%'",
+                "category": "economy"
+            },
+            {
+                "name": "Referral Rate L1",
+                "key": "referral_rate_l1",
+                "current_value": cfg("referral_rate_l1", 0.05),
+                "display": f"{cfg('referral_rate_l1', 0.05)*100:.1f}%",
+                "description": "Direct referrer earns this % of tokens minted by users they invited.",
+                "proposal_format": "Include 'referral' and 'l1' in title, winning option as '5%'",
+                "category": "economy"
+            },
+            {
+                "name": "Referral Rate L2",
+                "key": "referral_rate_l2",
+                "current_value": cfg("referral_rate_l2", 0.01),
+                "display": f"{cfg('referral_rate_l2', 0.01)*100:.1f}%",
+                "description": "Second-tier referrer earns this % of tokens minted by their referrer's invites.",
+                "proposal_format": "Include 'referral' and 'l2' in title, winning option as '1%'",
+                "category": "economy"
+            },
+            {
+                "name": "Token Reference Rate",
+                "key": "usd_per_token",
+                "current_value": cfg("usd_per_token", 1.0),
+                "display": f"${cfg('usd_per_token', 1.0):.2f}/A",
+                "description": "Reference exchange rate for tokens. Affects buy/sell pricing.",
+                "proposal_format": "Include 'token rate' in title, winning option as '$2.00' or '2.00'",
+                "category": "economy"
+            },
+            {
+                "name": "Governance Quorum",
+                "key": "quorum",
+                "current_value": QUORUM_OVERRIDE,
+                "display": f"{QUORUM_OVERRIDE*100:.0f}%",
+                "description": "Percentage of eligible voters required for a proposal to pass.",
+                "proposal_format": "Include 'quorum' in title, winning option as '80%'",
+                "category": "governance"
+            },
+            {
+                "name": "Minimum Score to Vote",
+                "key": "min_score",
+                "current_value": MIN_SCORE_TO_VOTE,
+                "display": str(MIN_SCORE_TO_VOTE),
+                "description": "Total score threshold required to submit or vote on proposals.",
+                "proposal_format": "Include 'min score' in title, winning option as '15'",
+                "category": "governance"
+            },
+            {
+                "name": "Founder Sunset Threshold",
+                "key": "founder_sunset",
+                "current_value": FOUNDER_SUNSET_THRESHOLD,
+                "display": f"{FOUNDER_SUNSET_THRESHOLD} users",
+                "description": "User count at which founders lose ability to bypass quorum. Currently immutable.",
+                "proposal_format": "N/A — immutable by design",
+                "category": "governance"
+            },
+            {
+                "name": "Auto-Prune Threshold",
+                "key": "prune_threshold",
+                "current_value": 1.0,
+                "display": "avg ≤ 1.0 AND ≥20% raters",
+                "description": "Assets rated at or below this average by enough raters are auto-deleted.",
+                "proposal_format": "Include 'prune' in title",
+                "category": "content"
+            }
+        ],
+        "founders_active": founders_active(db),
+        "user_count": user_count,
+        "users_until_sunset": max(0, FOUNDER_SUNSET_THRESHOLD - user_count)
+    }
+
+
 @router.get("/status")
 def governance_status(db: Session = Depends(get_db)):
     """Current governance parameters and founder sunset status."""
