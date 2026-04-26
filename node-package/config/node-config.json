@@ -6,7 +6,7 @@
   ],
   "code_source": "network",
   "code_endpoint": "/download/node-package",
-  "codebase_hash": "8136bc968766389b6d2a818903c2030487db3ec95e44c22e098f3afef30ff13d",
+  "codebase_hash": "d67177c1241332555bbef7ff63a8d47c8729a635eed3c0b01e30d3cf8e6064ec",
   "founder_node": "node_1",
   "founder_handle": "sean",
   "join_requirements": {

@@ -49,6 +49,8 @@ def check_and_warn(db: Session) -> dict:
             if zombie_pct >= threshold:
                 z.prune_warned_at = now
                 warned.append(z.handle)
+                # Send DM warning from network (ava as operator)
+                _send_warning_dm(db, z.handle, removal_hours)
         else:
             # Already warned — check if deadline passed
             warned_at = z.prune_warned_at
@@ -76,51 +78,86 @@ def check_and_warn(db: Session) -> dict:
     }
 
 
+def _send_warning_dm(db: Session, recipient_handle: str, removal_hours: float):
+    """Send a DM warning from @ava (network operator) to the at-risk account."""
+    try:
+        from db import User as UserModel, DirectMessage
+        from datetime import datetime, timezone
+        ava = db.query(UserModel).filter(UserModel.handle == 'ava').first()
+        if not ava:
+            return
+        thread_id = f"prune_warning_{recipient_handle}"
+        msg = DirectMessage(
+            sender_id=ava.id,
+            recipient_handle=recipient_handle,
+            content=(
+                f"⚠️ Network notice: Your account (@{recipient_handle}) has a score of 0 and the network has reached the inactive-user threshold.
+
+"
+                f"You have {removal_hours:.0f} hours to earn activity points (submit an asset, rate work, or complete a trade) or your account will be removed.
+
+"
+                f"If your account is removed, you may re-register from a new device. Your handle will be released.
+
+"
+                f"This is an automated message from the Agora network operator."
+            ),
+            thread_id=thread_id,
+            is_read=False,
+        )
+        db.add(msg)
+    except Exception as e:
+        print(f"[pruning] Warning DM failed: {e}")
+
+
 def _remove_user(db: Session, target: User):
-    """Seize assets, absorb debt, anonymize account."""
+    """Remove inactive zero-score account. Simple deletion for zero-balance/zero-asset accounts."""
     handle = target.handle
 
     # Revoke API keys
     db.query(ApiKey).filter(ApiKey.user_id == target.id).delete()
 
-    # Seize assets → tag as bank-seized
+    # Check if they have assets or balance — if so, seize; if not, just delete
     user_assets = db.query(Asset).filter(
         Asset.submitter_id == target.id,
         Asset.is_deleted == False
     ).all()
-    for asset in user_assets:
-        existing_tags = asset.tags or ""
-        if "bank-seized" not in existing_tags:
-            asset.tags = (existing_tags + ",bank-seized").strip(",")
-        if asset.avg_rating and asset.avg_rating > 0:
+
+    if user_assets or target.token_balance != 0:
+        # Has assets or balance — seize to bank
+        for asset in user_assets:
+            existing_tags = asset.tags or ""
+            if "bank-seized" not in existing_tags:
+                asset.tags = (existing_tags + ",bank-seized").strip(",")
+            if asset.avg_rating and asset.avg_rating > 0:
+                db.add(BankLedger(
+                    event_type="asset_seizure",
+                    amount=asset.avg_rating,
+                    note=f"Asset #{asset.id} seized from @{handle} (prune)"
+                ))
+        if target.token_balance > 0:
             db.add(BankLedger(
-                event_type="asset_seizure",
-                amount=asset.avg_rating,
-                note=f"Asset #{asset.id} seized from @{handle} (prune)"
+                event_type="user_prune_balance_seized",
+                amount=target.token_balance,
+                note=f"Balance seized from @{handle} (prune)"
+            ))
+        elif target.token_balance < 0:
+            db.add(BankLedger(
+                event_type="user_prune_debt_absorbed",
+                amount=target.token_balance,
+                note=f"Debt absorbed from @{handle} (prune)"
             ))
 
-    # Handle balance
-    if target.token_balance > 0:
-        db.add(BankLedger(
-            event_type="user_prune_balance_seized",
-            amount=target.token_balance,
-            note=f"Balance seized from @{handle} (prune)"
-        ))
-    elif target.token_balance < 0:
-        db.add(BankLedger(
-            event_type="user_prune_debt_absorbed",
-            amount=target.token_balance,
-            note=f"Debt absorbed from @{handle} (prune)"
-        ))
-
-    # Anonymize
+    # Clean deletion for zero-balance/zero-asset accounts; anonymize if they had history
     target.total_score = 0.0
     target.submission_score = 0.0
     target.rater_score = 0.0
     target.trade_score = 0.0
+    target.node_score = 0.0
     target.token_balance = 0.0
     target.handle = f"[removed_{target.id}]"
     target.prune_warned_at = None
+    print(f"[pruning] @{handle} removed. Had {len(user_assets)} assets.")
 
 
 def get_prune_status(db: Session) -> dict:
