@@ -261,7 +261,11 @@ async function buildCard(proposal, eligible_count, isClosed) {
   var total_votes = options.length > 0 ? Math.max.apply(null, options.map(function(o){ return o.vote_count; })) : 0; // distinct voters = highest vote_count on any option (ranked ballot)
   var quorum_pct = eligible_count > 0 ? Math.min(100, Math.round((total_votes / (eligible_count * proposal.quorum)) * 100)) : 0;
   var quorum_met = eligible_count > 0 && (total_votes / eligible_count) >= proposal.quorum;
-  var leading = options.reduce(function(a, b){ return a.vote_count >= b.vote_count ? a : b; }, options[0] || {});
+  // Leading = lowest rank_total (ranked choice: lower total = more preferred)
+  var voted_options = options.filter(function(o){ return o.rank_total > 0; });
+  var leading = voted_options.length
+    ? voted_options.reduce(function(a, b){ return a.rank_total <= b.rank_total ? a : b; })
+    : null;
 
   // My rankings
   var my_rankings = {};  // option_id -> rank position (1=best)
