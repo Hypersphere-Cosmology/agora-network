@@ -116,8 +116,8 @@ async function loadCommittees() {
       if (isBoard || isMember) {
         html += '<div style="margin-top:12px;border-top:1px solid #222;padding-top:12px;">';
         html += '<button class="propose-btn" onclick="openPropose(\'' + esc(c.slug) + '\')">+ Propose Action</button>';
-        if (isBoard) {
-          html += ' <button onclick="openAddMember(\'' + esc(c.slug) + '\')" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.8rem;margin-left:6px;">+ Add Member</button>';
+        if (isBoard || isHead) {
+          html += ' <button onclick="openAddMember(\'' + esc(c.slug) + '\')" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:0.8rem;margin-left:6px;">+ Propose Member</button>';
         }
         html += '</div>';
       }
@@ -125,6 +125,14 @@ async function loadCommittees() {
     });
 
     document.getElementById('committee-list').innerHTML = html || '<div style="color:#444;padding:32px;text-align:center">No committees found.</div>';
+
+    // Add "Propose New Committee" button for board members
+    if (isBoard) {
+      var newCommBtn = '<div style="text-align:right;margin-bottom:16px;">' +
+        '<button onclick="openProposeNewCommittee()" style="background:#4caf50;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.82rem;">+ Propose New Committee</button>' +
+        '</div>';
+      document.getElementById('committee-list').insertAdjacentHTML('beforebegin', newCommBtn);
+    }
   } catch(e) {
     document.getElementById('committee-list').innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>';
   }
@@ -140,12 +148,37 @@ function openPropose(slug) {
 }
 
 function openAddMember(slug) {
-  var handle = prompt('Handle to add as member:');
+  var handle = prompt('Handle to propose as member:');
   if (!handle) return;
   var role = prompt('Role (member or head):', 'member');
-  api('/committees/' + slug + '/members', 'POST', {handle: handle, role: role||'member', term_days: 90})
-    .then(function(d) { alert('Added @' + d.member + ' as ' + d.role); loadCommittees(); })
-    .catch(function(e) { alert('Error: ' + e.message); });
+  if (!role) role = 'member';
+  // Note: this goes to board vote, not direct add
+  fetch('/committees/' + slug + '/propose-member', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
+    body: JSON.stringify({handle: handle, role: role, term_days: 100})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) alert('Proposed! ' + d.message);
+    else alert('Error: ' + (d.detail || JSON.stringify(d)));
+    loadCommittees();
+  }).catch(function(e){ alert('Error: ' + e.message); });
+}
+
+function openProposeNewCommittee() {
+  var name = prompt('Committee name:'); if (!name) return;
+  var slug = prompt('Slug (lowercase, no spaces):'); if (!slug) return;
+  var description = prompt('Description:'); if (!description) return;
+  var domain = prompt('Domain (comma-separated keywords):'); if (!domain) return;
+  var charter = prompt('Charter (what can this committee do?):'); if (!charter) return;
+  var head = prompt('Initial head handle (optional):') || null;
+  fetch('/committees/propose-new', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
+    body: JSON.stringify({name: name, slug: slug, description: description, domain: domain, charter: charter, initial_head: head})
+  }).then(function(r){ return r.json(); }).then(function(d) {
+    if (d.ok) alert('Proposed! ' + d.message);
+    else alert('Error: ' + (d.detail || JSON.stringify(d)));
+  }).catch(function(e){ alert('Error: ' + e.message); });
 }
 
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();

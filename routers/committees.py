@@ -100,6 +100,53 @@ def board_vote(action_id: int, payload: BoardVoteCreate, db: Session = Depends(g
         if yes_count >= threshold:
             action.status = "approved"
             action.resolved_at = datetime.now(timezone.utc)
+            # Auto-execute member additions
+            if action.action_type == "member_add" and action.description:
+                import re
+                handle_match = re.search(r'handle:(\S+)', action.description)
+                role_match = re.search(r'role:(\S+)', action.description)
+                if handle_match:
+                    _handle = handle_match.group(1)
+                    _role = role_match.group(1) if role_match else "member"
+                    _user = db.query(User).filter(User.handle == _handle).first()
+                    _existing = db.query(CommitteeMember).filter(
+                        CommitteeMember.committee_id == action.committee_id,
+                        CommitteeMember.user_handle == _handle,
+                        CommitteeMember.is_active == True
+                    ).first()
+                    if _user and not _existing:
+                        db.add(CommitteeMember(
+                            committee_id=action.committee_id,
+                            user_handle=_handle,
+                            role=_role,
+                            approved_by="board_vote",
+                        ))
+                        db.commit()
+            # Auto-execute new committee creation
+            if action.action_type == "new_committee" and action.description:
+                import json as _json
+                try:
+                    spec = _json.loads(action.description)
+                    existing_comm = db.query(Committee).filter(Committee.slug == spec["slug"]).first()
+                    if not existing_comm:
+                        new_committee = Committee(
+                            name=spec["name"], slug=spec["slug"],
+                            description=spec["description"], domain=spec["domain"],
+                            charter=spec["charter"], created_by=action.proposed_by
+                        )
+                        db.add(new_committee)
+                        db.flush()
+                        if spec.get("initial_head"):
+                            head_user = db.query(User).filter(User.handle == spec["initial_head"]).first()
+                            if head_user:
+                                db.add(CommitteeMember(
+                                    committee_id=new_committee.id,
+                                    user_handle=spec["initial_head"],
+                                    role="head", approved_by="board_vote"
+                                ))
+                        db.commit()
+                except Exception as e:
+                    print(f"[committees] new_committee auto-execute failed: {e}")
         elif (yes_count + remaining_possible_yes) < threshold:
             # Even if all remaining voted yes, can't reach threshold
             action.status = "rejected"
@@ -126,6 +173,51 @@ def board_vote(action_id: int, payload: BoardVoteCreate, db: Session = Depends(g
         "votes_against": no_count + abstain_count,
         "required": threshold,
     }
+
+
+# ── Propose a new committee (Board only, must be before /{slug} routes) ──────
+
+class NewCommitteeProposal(BaseModel):
+    name: str
+    slug: str
+    description: str
+    domain: str
+    charter: str
+    initial_head: Optional[str] = None  # handle to appoint as head
+
+
+@router.post("/propose-new")
+def propose_new_committee(payload: NewCommitteeProposal, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """Board members only — creates a governance action to establish a new committee.
+    Requires 70% board approval before the committee is created."""
+    board = get_board_members()
+    if current_user.handle not in board:
+        raise HTTPException(status_code=403, detail="Board members only")
+
+    # Store the proposal as an action under the audit committee
+    audit = db.query(Committee).filter(Committee.slug == "audit").first()
+    if not audit:
+        raise HTTPException(status_code=500, detail="Audit committee not found — cannot record governance action")
+
+    import json
+    action = CommitteeAction(
+        committee_id=audit.id,
+        action_type="new_committee",
+        title=f"Create new committee: {payload.name}",
+        description=json.dumps({
+            "name": payload.name, "slug": payload.slug,
+            "description": payload.description, "domain": payload.domain,
+            "charter": payload.charter, "initial_head": payload.initial_head
+        }),
+        proposed_by=current_user.handle,
+        board_required=round(len(board) * 0.7, 4),
+    )
+    db.add(action)
+    db.commit()
+    db.refresh(action)
+    return {"ok": True, "action_id": action.id,
+            "message": f"Board vote required to create '{payload.name}'. Action #{action.id} pending."}
 
 
 # ── List & Get ────────────────────────────────────────────────────────────────
@@ -228,7 +320,7 @@ def propose_action(slug: str, payload: ActionCreate, db: Session = Depends(get_d
     return {"ok": True, "action_id": action.id, "board_required": action.board_required, "board": board}
 
 
-# ── Add committee member (Board approves) ────────────────────────────────────
+# ── Add committee member (via board vote proposal) ────────────────────────────
 
 class MemberAdd(BaseModel):
     handle: str
@@ -236,12 +328,55 @@ class MemberAdd(BaseModel):
     term_days: int = 90
 
 
-@router.post("/{slug}/members")
-def add_member(slug: str, payload: MemberAdd, db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
+@router.post("/{slug}/propose-member")
+def propose_member_add(slug: str, payload: MemberAdd, db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    """Committee head proposes adding a member — goes to Board vote.
+    On 70% board approval the member is added automatically."""
+    c = db.query(Committee).filter(Committee.slug == slug, Committee.is_active == True).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Committee not found")
+
+    # Must be committee head or board member
+    head = db.query(CommitteeMember).filter(
+        CommitteeMember.committee_id == c.id,
+        CommitteeMember.user_handle == current_user.handle,
+        CommitteeMember.role == "head",
+        CommitteeMember.is_active == True
+    ).first()
+    board = get_board_members()
+    if not head and current_user.handle not in board:
+        raise HTTPException(status_code=403,
+                            detail="Committee head or board member required to propose member addition")
+
+    # Check user exists
+    user = db.query(User).filter(User.handle == payload.handle).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    action = CommitteeAction(
+        committee_id=c.id,
+        action_type="member_add",
+        title=f"Add @{payload.handle} as {payload.role} to {c.name}",
+        description=f"handle:{payload.handle} role:{payload.role}",
+        proposed_by=current_user.handle,
+        board_required=round(len(board) * 0.7, 4),
+    )
+    db.add(action)
+    db.commit()
+    db.refresh(action)
+    return {"ok": True, "action_id": action.id,
+            "message": f"Board vote required to add @{payload.handle}. Action #{action.id} pending."}
+
+
+@router.post("/{slug}/members/direct")
+def add_member_direct(slug: str, payload: MemberAdd, db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """EMERGENCY BACKDOOR — Board members only. Bypasses the board vote process.
+    Use only for bootstrapping or correcting governance errors. Prefer propose-member."""
     board = get_board_members()
     if current_user.handle not in board:
-        raise HTTPException(status_code=403, detail="Board members only can add committee members")
+        raise HTTPException(status_code=403, detail="Board members only can directly add committee members")
 
     c = db.query(Committee).filter(Committee.slug == slug, Committee.is_active == True).first()
     if not c:
@@ -267,7 +402,7 @@ def add_member(slug: str, payload: MemberAdd, db: Session = Depends(get_db),
     )
     db.add(member)
     db.commit()
-    return {"ok": True, "member": payload.handle, "role": payload.role}
+    return {"ok": True, "member": payload.handle, "role": payload.role, "note": "Added directly (bypassed board vote)"}
 
 
 # ── Remove/deactivate member ─────────────────────────────────────────────────

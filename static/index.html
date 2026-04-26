@@ -298,7 +298,7 @@
     <a href="/committees" class="more-menu-item" style="color:#ccc;">🏛 Committees</a>
     <div class="more-menu-item" onclick="closeMore();toggleNetworkStatus()">📡 Network Status</div>
     <a href="/faq" class="more-menu-item" style="color:#ccc;">❓ FAQ</a>
-    <a href="/bounties" class="more-menu-item" style="color:#ccc;">🎯 Bounties</a>
+
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid #222;">
       <button onclick="closeMore()" style="width:100%;background:#2a2a2a;color:#888;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:0.85rem;">Close</button>
     </div>
@@ -400,6 +400,8 @@
 
   <!-- MARKETPLACE PANE -->
   <div id="pane-market" class="pane">
+    <!-- Active Bounties Section -->
+    <div id="bounties-section" style="margin-bottom:20px;display:none;"></div>
     <!-- Transfer form -->
     <div id="transfer-form" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:20px;margin-bottom:20px;display:none;">
       <h3 style="color:#fff;font-size:0.92rem;margin-bottom:14px;">Send Tokens</h3>
@@ -719,7 +721,7 @@ function showTab(name) {
   if (history.replaceState) {
     history.replaceState(null, '', '#' + name);
   }
-  if (name === 'market') { loadListings(); loadServices(); }
+  if (name === 'market') { loadListings(); loadServices(); loadBounties(); }
   if (name === 'users') loadUsers();
   if (name === 'gov') loadGov();
   if (name === 'profile') loadProfile();
@@ -1776,6 +1778,27 @@ async function postBounty() {
     document.getElementById('bounty-memo').value = '';
     setTimeout(function(){ loadListings(); boot(); }, 800);
   } catch(e) { msg.style.color='#f66'; msg.textContent = e.message; }
+}
+
+async function loadBounties() {
+  try {
+    var d = await fetch('/marketplace/bounties').then(function(r){ return r.json(); });
+    var bounties = Array.isArray(d) ? d : (d.bounties || []);
+    bounties = bounties.filter(function(b){ return b.status === 'open' || (!b.status && b.bounty_id); });
+    var el = document.getElementById('bounties-section');
+    if (!el) return;
+    if (!bounties.length) { el.style.display='none'; return; }
+    el.style.display='block';
+    el.innerHTML = '<div style="font-size:0.72rem;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">🏹 Open Bounties</div>' +
+      bounties.map(function(b) {
+        return '<div style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div><div style="font-size:0.88rem;color:#fff;font-weight:600;">' + esc(b.memo||b.title||'Bounty #'+(b.bounty_id||b.id)) + '</div>' +
+          '<div style="font-size:0.75rem;color:#555;margin-top:2px;">by @' + esc(b.posted_by||b.poster_handle||'?') + '</div></div>' +
+          '<div style="text-align:right;flex-shrink:0;">' +
+          '<div style="font-size:1rem;font-weight:700;color:#4caf50;">' + Number(b.amount||0).toFixed(2) + ' A</div>' +
+          '</div></div>';
+      }).join('');
+  } catch(e) {}
 }
 
 async function loadListings() {

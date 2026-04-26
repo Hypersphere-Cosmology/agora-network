@@ -64,13 +64,19 @@ app.include_router(files.router)
 app.include_router(fiat.router)
 app.include_router(federation.router)
 app.include_router(social_router)
+_NO_CACHE = {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.get("/committees", include_in_schema=False)
 def committees_page():
-    return FileResponse("static/committees.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/committees.html", headers=_NO_CACHE)
 
 @app.get("/board", include_in_schema=False)
 def board_page():
-    return FileResponse("static/board.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/board.html", headers=_NO_CACHE)
 
 app.include_router(committees_router)
 
@@ -78,11 +84,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/ui", include_in_schema=False)
 def ui():
-    return FileResponse("static/index.html", headers={
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-    })
+    return FileResponse("static/index.html", headers=_NO_CACHE)
 
 @app.get("/any", include_in_schema=False)
 async def any_shortcut(ref: str = None):
@@ -93,31 +95,27 @@ async def any_shortcut(ref: str = None):
 
 @app.get("/join", include_in_schema=False)
 def join():
-    return FileResponse("static/index.html", headers={
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-    })
+    return FileResponse("static/index.html", headers=_NO_CACHE)
 
 @app.get("/u/{handle}", include_in_schema=False)
 def user_profile(handle: str):
-    return FileResponse("static/profile.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/profile.html", headers=_NO_CACHE)
 
 @app.get("/bounties", include_in_schema=False)
 def public_bounties():
-    return FileResponse("static/bounties.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/bounties.html", headers=_NO_CACHE)
 
 @app.get("/governance-portal", include_in_schema=False)
 def governance_portal():
-    return FileResponse("static/governance.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/governance.html", headers=_NO_CACHE)
 
 @app.get("/faq", include_in_schema=False)
 def faq():
-    return FileResponse("static/faq.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/faq.html", headers=_NO_CACHE)
 
 @app.get("/bank-portal", include_in_schema=False)
 def bank_portal():
-    return FileResponse("static/bank.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    return FileResponse("static/bank.html", headers=_NO_CACHE)
 
 
 def _seed_genesis():
