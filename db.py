@@ -44,6 +44,8 @@ class User(Base):
     referral_raw = Column(Float, default=0.0)      # count of active referred users (referred_by = this handle AND total_score > 0)
     referral_score = Column(Float, default=0.0)    # percentile-normalized 0-10
     node_score = Column(Float, default=0.0)         # 10 if node operator, else 0
+    committee_raw = Column(Integer, default=0)       # count of committee actions proposed/executed
+    committee_score = Column(Float, default=0.0)     # percentile-normalized 0-10
     prune_warned_at = Column(DateTime, nullable=True)  # when pruning warning was sent
     total_score = Column(Float, default=0.0)       # 0-50
 

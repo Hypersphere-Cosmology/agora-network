@@ -140,6 +140,16 @@ def post_to_wall(
     if len(body.content) > 2000:
         raise HTTPException(status_code=400, detail="Content exceeds 2000 character limit")
 
+    # Rate limit: 100 DMs per sender per rolling 24h
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent_count = db.query(DirectMessage).filter(
+        DirectMessage.sender_id == current_user.id,
+        DirectMessage.sent_at >= cutoff
+    ).count()
+    if recent_count >= 100:
+        raise HTTPException(status_code=429, detail="DM limit reached: 100 messages per 24 hours.")
+
     # Ensure target user exists
     target = db.query(User).filter(User.handle == handle).first()
     if not target:
@@ -275,6 +285,16 @@ def send_dm(
     """Send a DM to a user. Auth required."""
     if len(body.content) > 2000:
         raise HTTPException(status_code=400, detail="Content exceeds 2000 character limit")
+
+    # Rate limit: 100 DMs per sender per rolling 24h
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent_count = db.query(DirectMessage).filter(
+        DirectMessage.sender_id == current_user.id,
+        DirectMessage.sent_at >= cutoff
+    ).count()
+    if recent_count >= 100:
+        raise HTTPException(status_code=429, detail="DM limit reached: 100 messages per 24 hours.")
 
     # Ensure recipient exists locally (may be on another node — we still store it)
     recipient = db.query(User).filter(User.handle == handle).first()

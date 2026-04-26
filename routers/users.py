@@ -40,6 +40,8 @@ class UserOut(BaseModel):
     referral_raw: float = 0.0
     referral_score: float = 0.0
     node_score: float = 0.0
+    committee_raw: int = 0
+    committee_score: float = 0.0
     total_score: float
 
     class Config:

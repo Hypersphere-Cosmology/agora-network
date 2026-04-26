@@ -117,9 +117,23 @@ def recalculate_all_user_scores(db: Session):
 
     for u in users:
         u.referral_score = percentile_score(float(u.referral_raw), referral_raws)
-        # Node score: flat 10 points for node operators, 0 for everyone else
+        # Committee score: count of committee actions proposed by this user (percentile-normalized)
+    for u in users:
+        try:
+            from db import CommitteeAction
+            u.committee_raw = db.query(CommitteeAction).filter(
+                CommitteeAction.proposed_by == u.handle
+            ).count()
+        except Exception:
+            u.committee_raw = 0
+
+    committee_raws = [float(u.committee_raw) for u in users]
+    for u in users:
+        u.committee_score = percentile_score(float(u.committee_raw), committee_raws)
+
+    # Node score: flat 10 points for node operators, 0 for everyone else
         u.node_score = 10.0 if u.handle in node_operator_handles else 0.0
-        u.total_score = round(u.submission_score + u.rater_score + u.trade_score + u.referral_score + u.node_score, 4)
+        u.total_score = round(u.submission_score + u.rater_score + u.trade_score + u.referral_score + u.node_score + u.committee_score, 4)
 
     db.commit()
 
