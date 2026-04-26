@@ -39,6 +39,7 @@ class UserOut(BaseModel):
     trade_score: float
     referral_raw: float = 0.0
     referral_score: float = 0.0
+    node_score: float = 0.0
     total_score: float
 
     class Config:

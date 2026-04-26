@@ -577,8 +577,8 @@ def get_parameters(db: Session = Depends(get_db)):
             {
                 "name": "Score Dimensions",
                 "key": "score_dimensions",
-                "current_value": 4,
-                "display": "Submission (0-10) + Rater (0-10) + Trade (0-10) + Referral (0-10) = 40 max",
+                "current_value": 5,
+                "display": "Submission (0-10) + Rater (0-10) + Trade (0-10) + Referral (0-10) + Node (0 or 10) = 50 max",
                 "description": "Four equally-weighted percentile-normalized dimensions. Max total score: 40. Dimensions and weights adjustable by vote.",
                 "proposal_format": "Propose 'add score dimension: <name>' or 'reweight score dimensions'",
                 "category": "governance"

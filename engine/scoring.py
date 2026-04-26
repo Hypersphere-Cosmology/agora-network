@@ -101,9 +101,25 @@ def recalculate_all_user_scores(db: Session):
 
     referral_raws = [float(u.referral_raw) for u in users]
 
+    # Get node operators from registry
+    import json as _json
+    from pathlib import Path as _Path
+    _reg_file = _Path(__file__).parent.parent / 'node-registry.json'
+    node_operator_handles = set()
+    node_operator_handles.add('viralsatan')  # Node 1 always
+    if _reg_file.exists():
+        try:
+            _reg = _json.loads(_reg_file.read_text())
+            for _node in _reg.get('nodes', {}).values():
+                _h = _node.get('operator_handle', '')
+                if _h: node_operator_handles.add(_h)
+        except: pass
+
     for u in users:
         u.referral_score = percentile_score(float(u.referral_raw), referral_raws)
-        u.total_score = round(u.submission_score + u.rater_score + u.trade_score + u.referral_score, 4)
+        # Node score: flat 10 points for node operators, 0 for everyone else
+        u.node_score = 10.0 if u.handle in node_operator_handles else 0.0
+        u.total_score = round(u.submission_score + u.rater_score + u.trade_score + u.referral_score + u.node_score, 4)
 
     db.commit()
 

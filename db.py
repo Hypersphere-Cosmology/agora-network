@@ -43,7 +43,8 @@ class User(Base):
     trade_score = Column(Float, default=0.0)
     referral_raw = Column(Float, default=0.0)      # count of active referred users (referred_by = this handle AND total_score > 0)
     referral_score = Column(Float, default=0.0)    # percentile-normalized 0-10
-    total_score = Column(Float, default=0.0)       # 0-40
+    node_score = Column(Float, default=0.0)         # 10 if node operator, else 0
+    total_score = Column(Float, default=0.0)       # 0-50
 
     referred_by = Column(String, nullable=True)    # handle of who referred this user
     referral_code = Column(String, nullable=True)  # their own referral code (= their handle)
