@@ -68,6 +68,7 @@ _NO_CACHE = {
     "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
     "Pragma": "no-cache",
     "Expires": "0",
+    "ETag": "0",  # invalidate ETag so browser never does conditional GET
 }
 
 @app.get("/committees", include_in_schema=False)

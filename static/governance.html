@@ -297,7 +297,7 @@ async function buildCard(proposal, eligible_count, isClosed) {
       '<div style="flex:1;min-width:0;">' +
       '<div style="font-size:0.88rem;color:#e0e0e0;">' + esc(opt.label) + '</div>' +
       '</div>' +
-      '<div class="option-count">' + opt.vote_count + ' vote' + (opt.vote_count !== 1 ? 's' : '') + '</div>' +
+      '<div class="option-count">' + (myRank ? 'your rank: #' + myRank : (opt.rank_total > 0 ? 'rank total: ' + opt.rank_total : '—')) + '</div>' +
       (isLeading && !isClosed ? '<span style="font-size:0.7rem;color:#4caf50;">leading</span>' : '') +
       (isWinner ? '<span style="font-size:0.7rem;color:#4caf50;font-weight:700;">✓ won</span>' : '') +
       '</div>';
