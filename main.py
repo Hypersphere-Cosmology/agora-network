@@ -125,13 +125,13 @@ def _seed_genesis():
         ava_key = None
 
         # Founder
-        sean = db.query(User).filter(User.handle == "sean").first()
+        sean = db.query(User).filter(User.handle == "viralsatan").first()
         if not sean:
-            sean = User(handle="sean", display_name="Sean Myers", agent_type="human")
+            sean = User(handle="viralsatan", display_name="Viral Satan", agent_type="human")
             db.add(sean)
             db.flush()
-        if not sean.referral_code or sean.referral_code == "sean":
-            sean.referral_code = stable_ref_code("sean")
+        if not sean.referral_code or sean.referral_code == "viralsatan":
+            sean.referral_code = stable_ref_code("viralsatan")
 
         if not db.query(ApiKey).filter(ApiKey.user_id == sean.id).first():
             raw = generate_api_key()

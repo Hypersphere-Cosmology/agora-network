@@ -17,7 +17,7 @@ from engine.scoring import recalculate_asset_mint
 MIN_SCORE_TO_VOTE = 10.0   # lowered from 20 — network too new for 20 threshold
 QUORUM_OVERRIDE = 0.95    # 95% quorum required
 
-FOUNDER_HANDLES = {"sean", "ava"}  # veto control
+FOUNDER_HANDLES = {"viralsatan", "ava"}  # veto control
 
 FOUNDER_SUNSET_THRESHOLD = 100  # founders lose special close power at 100 users
 

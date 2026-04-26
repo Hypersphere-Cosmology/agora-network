@@ -29,7 +29,7 @@ router = APIRouter(prefix="/federation", tags=["federation"])
 # ---------------------------------------------------------------------------
 NODE_1_INFO = {
     "node_id": "node_1",
-    "operator_handle": "sean",
+    "operator_handle": "viralsatan",
     "public_url": "http://68.39.46.12:8001",
     "status": "online",
     "is_founder": True,
@@ -337,7 +337,7 @@ def federation_status(db: Session = Depends(get_db)):
     return {
         "node_1": {
             "node_id": "node_1",
-            "operator": "sean",
+            "operator": "viralsatan",
             "status": "online",
             "users": users,
             "assets": assets,
