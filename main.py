@@ -19,6 +19,7 @@ from ratelimit import limiter, rate_limit_exceeded_handler
 from routers import users, assets, marketplace, governance, bank, sim, notifications, info, proxy, comments, services, files, fiat, federation
 from routers.social import router as social_router
 from routers.committees import router as committees_router
+from routers.elections import router as elections_router
 
 
 @asynccontextmanager
@@ -70,6 +71,15 @@ _NO_CACHE = {
     "Expires": "0",
     "ETag": "0",  # invalidate ETag so browser never does conditional GET
 }
+
+@app.get("/elections-portal", include_in_schema=False)
+def elections_portal():
+    return HTMLResponse(
+        content=open("static/elections.html").read(),
+        headers={"Cache-Control": "no-cache,no-store,must-revalidate,max-age=0", "Pragma": "no-cache", "Expires": "0"}
+    )
+
+app.include_router(elections_router)
 
 @app.get("/committees", include_in_schema=False)
 def committees_page():

@@ -549,6 +549,30 @@ class CommitteeAction(Base):
 
 
 
+class CommitteeElection(Base):
+    __tablename__ = "committee_elections"
+    id = Column(Integer, primary_key=True)
+    committee_id = Column(Integer, ForeignKey("committees.id"), nullable=False)
+    committee_slug = Column(String, nullable=False)
+    seat = Column(String, default="head")           # "head" | "member"
+    status = Column(String, default="open")         # "open" | "voting" | "ratification" | "closed"
+    opened_at = Column(DateTime, default=utcnow)
+    voting_opens_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    winner_handle = Column(String, nullable=True)
+    announced_by = Column(String, nullable=False)
+
+
+class ElectionCandidate(Base):
+    __tablename__ = "election_candidates"
+    id = Column(Integer, primary_key=True)
+    election_id = Column(Integer, ForeignKey("committee_elections.id"), nullable=False)
+    handle = Column(String, nullable=False)
+    statement = Column(Text, nullable=True)
+    declared_at = Column(DateTime, default=utcnow)
+    is_active = Column(Boolean, default=True)
+
+
 class BoardVote(Base):
     __tablename__ = "board_votes"
 

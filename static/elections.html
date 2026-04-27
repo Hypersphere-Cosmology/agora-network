@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agora — Elections</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+    header { background: #1a1a1a; border-bottom: 1px solid #333; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    header h1 span { color: #7c6af7; }
+    #auth-bar { display: flex; gap: 8px; align-items: center; }
+    #auth-bar input { background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; padding: 6px 10px; border-radius: 5px; font-size: 0.82rem; width: 220px; }
+    #auth-bar button { background: #7c6af7; color: #fff; border: none; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.82rem; }
+    main { max-width: 860px; margin: 32px auto; padding: 0 24px 60px; }
+    .election-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .election-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .election-meta { font-size: 0.75rem; color: #555; margin-bottom: 12px; }
+    .status-badge { display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 3px; font-weight: 600; margin-left: 8px; }
+    .status-open { background: #0f2a0f; color: #4caf50; }
+    .status-voting { background: #1a1a2a; color: #7c6af7; }
+    .status-ratification { background: #2a2a1a; color: #f5a623; }
+    .status-closed { background: #1a1a1a; color: #555; }
+    .candidate-chip { display: inline-block; background: #2a2a2a; border-radius: 4px; padding: 4px 10px; margin: 3px; font-size: 0.8rem; color: #aaa; }
+    .candidate-chip.me { background: #13102a; color: #7c6af7; border: 1px solid #2a1a5a; }
+    .declare-btn { background: #7c6af7; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; margin-top: 12px; }
+    .section-title { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🗳 <span>Agora</span> Elections</h1>
+  <div id="auth-bar">
+    <input type="text" id="key-input" placeholder="API key (agora_...)">
+    <button onclick="connect()">Connect</button>
+    <span id="user-chip"></span>
+  </div>
+</header>
+<main>
+  <div id="status-bar-mini" style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 18px;margin-bottom:0;display:flex;gap:20px;font-size:0.85rem;color:#aaa;flex-wrap:wrap;"></div>
+  <!-- Tab bar injected by JS -->
+  <div id="elections-list"><div style="color:#444;padding:32px;text-align:center">Loading elections...</div></div>
+</main>
+<script>
+var KEY = localStorage.getItem('agora_key') || '';
+var ME = null;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function connect() {
+  KEY = document.getElementById('key-input').value.trim();
+  localStorage.setItem('agora_key', KEY);
+  boot();
+}
+
+async function api(path, method, body) {
+  var opts = {method:method||'GET', headers:{'X-API-Key':KEY,'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  var r = await fetch(path, opts);
+  var d = await r.json();
+  if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+  return d;
+}
+
+async function boot() {
+  if (KEY) {
+    document.getElementById('key-input').value = KEY;
+    try { ME = await api('/users/me'); document.getElementById('user-chip').innerHTML = '<strong style="color:#7c6af7">@' + esc(ME.handle) + '</strong>'; } catch(e){}
+  }
+  // Status bar
+  fetch('/status').then(r=>r.json()).then(function(s){
+    document.getElementById('status-bar-mini').innerHTML = 'Users: <strong>' + s.users + '</strong>&nbsp;&nbsp;Assets: <strong>' + s.assets + '</strong>&nbsp;&nbsp;<strong style="color:#4caf50">$' + Number(s.usd_per_token||1).toFixed(2) + '</strong>/A';
+  }).catch(function(){});
+  loadElections();
+}
+
+async function loadElections() {
+  try {
+    var d = await fetch('/elections').then(r=>r.json());
+    var elections = d.elections || [];
+    var open = elections.filter(e=>e.status==='open');
+    var active = elections.filter(e=>['voting','ratification'].includes(e.status));
+    var closed = elections.filter(e=>e.status==='closed');
+    var html = '';
+
+    if (!elections.length) {
+      html = '<div style="color:#444;padding:48px;text-align:center;">No elections at this time.</div>';
+    } else {
+      if (open.length) {
+        html += '<div class="section-title">Open — Accepting Candidates</div>';
+        open.forEach(function(e){ html += buildCard(e); });
+      }
+      if (active.length) {
+        html += '<div class="section-title">In Progress</div>';
+        active.forEach(function(e){ html += buildCard(e); });
+      }
+      if (closed.length) {
+        html += '<div class="section-title">Completed</div>';
+        closed.forEach(function(e){ html += buildCard(e); });
+      }
+    }
+    document.getElementById('elections-list').innerHTML = html;
+  } catch(e) {
+    document.getElementById('elections-list').innerHTML = '<div style="color:#f66;padding:24px">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+function buildCard(e) {
+  var isCandidate = ME && e.candidates.some(function(c){return c.handle===ME.handle;});
+  var statusClass = 'status-' + e.status;
+  var html = '<div class="election-card">';
+  html += '<div class="election-title">' + esc(e.committee_slug.charAt(0).toUpperCase() + e.committee_slug.slice(1)) + ' Committee — ' + esc(e.seat.charAt(0).toUpperCase() + e.seat.slice(1)) + ' Position';
+  html += '<span class="status-badge ' + statusClass + '">' + esc(e.status.toUpperCase()) + '</span></div>';
+  html += '<div class="election-meta">Opened by @' + esc(e.announced_by) + ' · ' + new Date(e.opened_at).toLocaleDateString() + ' · ' + e.candidate_count + ' candidate' + (e.candidate_count!==1?'s':'') + '</div>';
+
+  if (e.candidates.length) {
+    html += '<div style="margin-bottom:10px;">';
+    e.candidates.forEach(function(c){
+      var isMe = ME && c.handle === ME.handle;
+      html += '<span class="candidate-chip' + (isMe?' me':'') + '">@' + esc(c.handle) + (isMe?' (you)':'') + '</span>';
+      if (c.statement) html += '<div style="font-size:0.78rem;color:#555;margin:2px 0 6px 12px;">' + esc(c.statement.slice(0,100)) + '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (e.winner) html += '<div style="color:#4caf50;font-size:0.85rem;margin-bottom:8px;">✓ Winner: @' + esc(e.winner) + '</div>';
+
+  if (e.status === 'open' && ME) {
+    if (!isCandidate) {
+      html += '<button class="declare-btn" onclick="declareFor(' + e.id + ')">Declare Candidacy</button>';
+    } else {
+      html += '<button onclick="withdrawFrom(' + e.id + ')" style="background:#2a1a1a;color:#f66;border:1px solid #4a1a1a;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;margin-top:10px;">Withdraw</button>';
+      html += '<div style="font-size:0.78rem;color:#4caf50;margin-top:8px;">✓ You have declared candidacy</div>';
+    }
+  }
+
+  if (e.status === 'voting') {
+    html += '<div style="background:#1a1a2a;border:1px solid #2a2a3a;border-radius:6px;padding:10px 14px;margin-top:10px;font-size:0.82rem;color:#7c6af7;">🗳 Vote is open on the <a href="/governance-portal" style="color:#7c6af7;">Governance page</a>. Rank your candidates.</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function declareFor(electionId) {
+  var statement = prompt('Optional: add a brief candidate statement (or press OK to skip):') || null;
+  if (statement === null && !confirm('Declare candidacy with no statement?')) return;
+  api('/elections/declare', 'POST', {election_id: electionId, statement: statement})
+    .then(function(){ loadElections(); })
+    .catch(function(e){ alert('Error: ' + e.message); });
+}
+
+function withdrawFrom(electionId) {
+  if (!confirm('Withdraw your candidacy?')) return;
+  fetch('/elections/declare/' + electionId, {method:'DELETE', headers:{'X-API-Key':KEY}})
+    .then(r=>r.json()).then(function(){ loadElections(); })
+    .catch(function(e){ alert('Error: ' + e.message); });
+}
+
+// Auto-update version check
+(function() {
+  var VERSION_KEY = 'agora_version';
+  fetch('/federation/version', {cache: 'no-store'})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var serverHash = (d.codebase_hash || '').slice(0,8);
+      var localHash = localStorage.getItem(VERSION_KEY) || '';
+      if (serverHash && localHash && serverHash !== localHash) {
+        localStorage.setItem(VERSION_KEY, serverHash);
+        var url = new URL(window.location.href);
+        url.searchParams.set('v', serverHash);
+        window.location.replace(url.toString());
+      } else if (serverHash) { localStorage.setItem(VERSION_KEY, serverHash); }
+    }).catch(function(){});
+})();
+
+if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
+</script>
+</body>
+</html>
