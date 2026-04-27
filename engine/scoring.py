@@ -117,20 +117,23 @@ def recalculate_all_user_scores(db: Session):
 
     for u in users:
         u.referral_score = percentile_score(float(u.referral_raw), referral_raws)
-        # Committee score: count of committee actions proposed BY COMMITTEE MEMBERS only
-    # Board governance proposals don't count — must be an active committee member
-    from db import CommitteeAction, CommitteeMember
-    committee_member_handles = set(
-        m.user_handle for m in db.query(CommitteeMember).filter(CommitteeMember.is_active == True).all()
-    )
+        # Governance score: all governance participation — committee actions proposed,
+    # board votes cast, and population votes cast
+    from db import CommitteeAction, BoardVote, Vote as PopVote
     for u in users:
         try:
-            if u.handle in committee_member_handles:
-                u.committee_raw = db.query(CommitteeAction).filter(
-                    CommitteeAction.proposed_by == u.handle
-                ).count()
-            else:
-                u.committee_raw = 0
+            committee_actions = db.query(CommitteeAction).filter(
+                CommitteeAction.proposed_by == u.handle
+            ).count()
+            board_votes = db.query(BoardVote).filter(
+                BoardVote.voter_handle == u.handle
+            ).count()
+            pop_votes = db.query(PopVote).filter(
+                PopVote.user_id == u.id
+            ).count()
+            # Deduplicate: pop_votes counts per-option in ranked ballot, divide by avg options (3)
+            pop_participation = max(1, pop_votes // 3) if pop_votes > 0 else 0
+            u.committee_raw = committee_actions + board_votes + pop_participation
         except Exception:
             u.committee_raw = 0
 
