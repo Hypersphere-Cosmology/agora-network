@@ -827,7 +827,7 @@ async function loadProfile() {
     html += '<div class="score-row"><span class="sname">Trade Score</span><span><span class="sval">' + ME.trade_score.toFixed(4) + '</span><span class="sraw">raw: ' + Number(ME.trade_raw).toFixed(4) + '</span></span></div>';
     html += '<div class="score-row"><span class="sname">Node Score</span><span><span class="sval">' + (ME.node_score||0).toFixed(1) + '</span><span class="sraw">' + (ME.node_score > 0 ? 'node operator +10' : 'not a node operator') + '</span></span></div>';
     html += '<div class="score-row"><span class="sname">Referral Score</span><span><span class="sval">' + (ME.referral_score||0).toFixed(4) + '</span><span class="sraw">active referrals: ' + (ME.referral_raw||0) + '</span></span></div>';
-    html += '<div class="score-row"><span class="sname">Governance Score</span><span><span class="sval">' + (ME.committee_score||0).toFixed(4) + '</span><span class="sraw">actions: ' + (ME.committee_raw||0) + '</span></span></div>';
+    html += '<div class="score-row"><span class="sname">Gov. Participation</span><span><span class="sval">' + (ME.committee_score||0).toFixed(4) + '</span><span class="sraw">actions: ' + (ME.committee_raw||0) + '</span></span></div>';
     html += '</div>';
 
     // My assets
