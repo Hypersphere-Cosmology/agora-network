@@ -280,18 +280,24 @@ async function castVote(actionId, vote) {
   if (msgEl) { msgEl.style.color='#888'; msgEl.textContent='Submitting...'; }
   try {
     var r = await api('/committees/actions/' + actionId + '/vote', 'POST', {vote: vote, reason: reason||null});
-    // Remove card immediately — vote is cast, no need to keep it on screen
-    var card = document.getElementById('vote-msg-' + actionId);
-    if (card) {
-      var parent = card.closest('.action-card');
-      if (parent) {
-        parent.style.transition = 'opacity 0.3s';
-        parent.style.opacity = '0';
-        setTimeout(function(){ if (parent.parentNode) parent.parentNode.removeChild(parent); }, 300);
+    // Find and remove the card immediately by action ID
+    var allCards = document.querySelectorAll('.action-card');
+    allCards.forEach(function(card) {
+      if (card.querySelector('#vote-msg-' + actionId)) {
+        card.style.transition = 'opacity 0.25s, max-height 0.3s';
+        card.style.opacity = '0';
+        card.style.overflow = 'hidden';
+        setTimeout(function() {
+          card.style.maxHeight = '0';
+          card.style.marginBottom = '0';
+          card.style.padding = '0';
+        }, 250);
+        setTimeout(function() {
+          if (card.parentNode) card.parentNode.removeChild(card);
+          loadPendingActions();
+        }, 550);
       }
-    }
-    // Reload to pick up any newly resolved items and refresh recent list
-    setTimeout(loadPendingActions, 400);
+    });
   } catch(e) {
     if (msgEl) { msgEl.style.color='#f66'; msgEl.textContent='Error: ' + e.message; }
     else alert('Error: ' + e.message);
