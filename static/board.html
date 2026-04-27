@@ -147,6 +147,11 @@
       70% must vote YES to pass. Abstaining counts toward quorum but not toward yes — effectively a no.
       No proxies. Each board member votes independently.
     </div>
+    <div class="section-title">Board Actions</div>
+    <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="openBoardPropose()" style="background:#7c6af7;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-size:0.84rem;">+ Propose Board Action</button>
+      <a href="/committees" style="background:#2a2a2a;color:#888;border:1px solid #333;padding:8px 18px;border-radius:6px;font-size:0.84rem;text-decoration:none;">🏛 Committees</a>
+    </div>
     <div class="section-title">Pending Board Votes</div>
     <div id="pending-actions"></div>
     <div class="section-title">Recent Decisions</div>
@@ -306,6 +311,47 @@ if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot
       }
     }).catch(function(){});
 })();
+
+function openBoardPropose() {
+  var existing = document.getElementById('board-propose-modal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'board-propose-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px;box-sizing:border-box;';
+  modal.innerHTML = '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:24px;width:100%;max-width:480px;">' +
+    '<h3 style="color:#fff;font-size:0.95rem;margin-bottom:16px;">⚡ Propose Board Action</h3>' +
+    '<div style="font-size:0.78rem;color:#555;margin-bottom:12px;">Board actions go to a vote among all node operators (70% threshold).</div>' +
+    '<select id="bp-committee" style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;margin-bottom:10px;"></select>' +
+    '<input id="bp-title" placeholder="Action title..." style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;margin-bottom:10px;box-sizing:border-box;">' +
+    '<textarea id="bp-desc" placeholder="Description and rationale..." style="width:100%;background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:100px;resize:vertical;box-sizing:border-box;margin-bottom:10px;"></textarea>' +
+    '<div style="display:flex;gap:8px;">' +
+    '<button onclick="submitBoardPropose()" style="flex:1;background:#7c6af7;color:#fff;border:none;padding:10px;border-radius:6px;cursor:pointer;">Submit</button>' +
+    '<button onclick="document.getElementById('board-propose-modal').remove()" style="background:#2a2a2a;color:#888;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Cancel</button>' +
+    '</div>' +
+    '<div id="bp-msg" style="margin-top:8px;font-size:0.8rem;color:#888;"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  // Populate committee dropdown
+  fetch('/committees/list').then(function(r){return r.json();}).then(function(d){
+    var sel = document.getElementById('bp-committee');
+    if (!sel) return;
+    sel.innerHTML = (d.committees||[]).map(function(c){ return '<option value="' + c.slug + '">' + c.name + '</option>'; }).join('');
+  }).catch(function(){});
+}
+
+async function submitBoardPropose() {
+  var slug = document.getElementById('bp-committee').value;
+  var title = document.getElementById('bp-title').value.trim();
+  var desc = document.getElementById('bp-desc').value.trim();
+  var msg = document.getElementById('bp-msg');
+  if (!title) { msg.textContent = 'Title required.'; return; }
+  try {
+    var r = await api('/committees/' + slug + '/propose', 'POST', {title: title, description: desc, action_type: 'proposal'});
+    msg.style.color = '#4caf50';
+    msg.textContent = '✅ Proposed! Action #' + r.action_id + ' — ' + r.board_required + ' board votes needed.';
+    setTimeout(function(){ document.getElementById('board-propose-modal').remove(); loadPendingActions(); }, 1500);
+  } catch(e) { msg.style.color = '#f66'; msg.textContent = 'Error: ' + e.message; }
+}
 </script>
 </body>
 </html>

@@ -248,20 +248,46 @@ function openAddMember(slug) {
 }
 
 function openProposeNewCommittee() {
-  var name = prompt('Committee name:'); if (!name) return;
-  var slug = prompt('Slug (lowercase, no spaces):'); if (!slug) return;
-  var description = prompt('Description:'); if (!description) return;
-  var domain = prompt('Domain (comma-separated keywords):'); if (!domain) return;
-  var charter = prompt('Charter (what can this committee do?):'); if (!charter) return;
-  var head = prompt('Initial head handle (optional):') || null;
+  var existing = document.getElementById('new-comm-modal');
+  if (existing) { existing.remove(); return; }
+  var modal = document.createElement('div');
+  modal.id = 'new-comm-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:300;overflow-y:auto;padding:20px;box-sizing:border-box;';
+  modal.innerHTML = '<div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:24px;width:100%;max-width:520px;">' +
+    '<h3 style="color:#fff;font-size:0.95rem;margin-bottom:16px;">🏛 Propose New Committee</h3>' +
+    '<div style="display:flex;flex-direction:column;gap:10px;">' +
+    '<input id="nc-name" placeholder="Committee name (e.g. Technical Committee)" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;">' +
+    '<input id="nc-slug" placeholder="Slug: lowercase-with-hyphens (e.g. technical)" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;">' +
+    '<input id="nc-domain" placeholder="Domain keywords: comma separated (e.g. code,tools,infra)" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;">' +
+    '<textarea id="nc-desc" placeholder="Description: what does this committee do?" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:70px;resize:vertical;"></textarea>' +
+    '<textarea id="nc-charter" placeholder="Charter: what authority does this committee have?" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;min-height:90px;resize:vertical;"></textarea>' +
+    '<input id="nc-head" placeholder="Initial head handle (optional)" style="background:#111;border:1px solid #333;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:0.84rem;">' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:14px;">' +
+    '<button onclick="submitNewCommittee()" style="flex:1;background:#4caf50;color:#fff;border:none;padding:10px;border-radius:6px;cursor:pointer;font-size:0.85rem;">Submit to Board Vote</button>' +
+    '<button onclick="document.getElementById(\'new-comm-modal\').remove()" style="background:#2a2a2a;color:#888;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Cancel</button>' +
+    '</div>' +
+    '<div id="nc-msg" style="margin-top:8px;font-size:0.8rem;color:#888;"></div>' +
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+function submitNewCommittee() {
+  var name = document.getElementById('nc-name').value.trim();
+  var slug = document.getElementById('nc-slug').value.trim().toLowerCase().replace(/\s+/g, '-');
+  var domain = document.getElementById('nc-domain').value.trim();
+  var desc = document.getElementById('nc-desc').value.trim();
+  var charter = document.getElementById('nc-charter').value.trim();
+  var head = document.getElementById('nc-head').value.trim() || null;
+  var msg = document.getElementById('nc-msg');
+  if (!name || !slug || !desc || !charter) { msg.textContent = 'Name, slug, description and charter are required.'; return; }
   fetch('/committees/propose-new', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
-    body: JSON.stringify({name: name, slug: slug, description: description, domain: domain, charter: charter, initial_head: head})
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-API-Key': KEY},
+    body: JSON.stringify({name: name, slug: slug, description: desc, domain: domain, charter: charter, initial_head: head})
   }).then(function(r){ return r.json(); }).then(function(d) {
-    if (d.ok) alert('Proposed! ' + d.message);
-    else alert('Error: ' + (d.detail || JSON.stringify(d)));
-  }).catch(function(e){ alert('Error: ' + e.message); });
+    if (d.ok) { msg.style.color='#4caf50'; msg.textContent = '✅ ' + d.message; setTimeout(function(){ document.getElementById('new-comm-modal').remove(); loadCommittees(); }, 1500); }
+    else { msg.style.color='#f66'; msg.textContent = d.detail || JSON.stringify(d); }
+  }).catch(function(e){ msg.style.color='#f66'; msg.textContent = 'Error: ' + e.message; });
 }
 
 if (KEY) { document.getElementById('key-input').value = KEY; boot(); } else boot();
