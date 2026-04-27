@@ -117,13 +117,20 @@ def recalculate_all_user_scores(db: Session):
 
     for u in users:
         u.referral_score = percentile_score(float(u.referral_raw), referral_raws)
-        # Committee score: count of committee actions proposed by this user (percentile-normalized)
+        # Committee score: count of committee actions proposed BY COMMITTEE MEMBERS only
+    # Board governance proposals don't count — must be an active committee member
+    from db import CommitteeAction, CommitteeMember
+    committee_member_handles = set(
+        m.user_handle for m in db.query(CommitteeMember).filter(CommitteeMember.is_active == True).all()
+    )
     for u in users:
         try:
-            from db import CommitteeAction
-            u.committee_raw = db.query(CommitteeAction).filter(
-                CommitteeAction.proposed_by == u.handle
-            ).count()
+            if u.handle in committee_member_handles:
+                u.committee_raw = db.query(CommitteeAction).filter(
+                    CommitteeAction.proposed_by == u.handle
+                ).count()
+            else:
+                u.committee_raw = 0
         except Exception:
             u.committee_raw = 0
 
